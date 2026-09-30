@@ -1,0 +1,6 @@
+.venv/
+__pycache__/
+.pytest_cache/
+.omc/
+accounting.owl
+accounting_inferred.owl

@@ -13,6 +13,13 @@ from kinetic.writeback import DEFAULT_LOG
 
 def record_decision(driver, title, rationale, actor, scenario_ids=(), action_ids=(), log_path=DEFAULT_LOG,
                     _replayed=None):
+    found = driver.execute_query(
+        """OPTIONAL MATCH (s:Scenario) WHERE s.scenario_id IN $sids WITH collect(s.scenario_id) AS s
+           OPTIONAL MATCH (a:ActionLog) WHERE a.action_id IN $aids RETURN s, collect(a.action_id) AS a""",
+        sids=list(scenario_ids), aids=list(action_ids)).records[0]
+    missing = (set(scenario_ids) - set(found["s"])) | (set(action_ids) - set(found["a"]))
+    if missing:
+        raise ValueError(f"없는 시나리오·액션 id: {sorted(missing)}")
     decision_id = _replayed["decision_id"] if _replayed else f"DEC-{uuid.uuid4().hex[:8].upper()}"
     at = W.stamp(_replayed)
     driver.execute_query(
@@ -50,7 +57,10 @@ def decision_trace(driver, decision_id):
         WITH d, scenarios, a ORDER BY a.executed_at
         RETURN d {.decision_id, .title, .rationale, .actor, .decided_at} AS d, scenarios,
                collect(a {.action_id, .action_type, .status, .message}) AS actions
-        """, id=decision_id).records[0]
+        """, id=decision_id).records
+    if not rec:
+        raise ValueError(f"없는 결정: {decision_id}")
+    rec = rec[0]
     return {**F._native(rec["d"]), "scenarios": rec["scenarios"], "actions": rec["actions"]}
 
 
@@ -69,6 +79,8 @@ def sales_before_after(driver, menu_id, pivot: date, days: int = 14):
             m=menu_id, a=datetime.combine(a, time()), b=datetime.combine(b, time())).records[0]
         return {"qty": r["qty"], "revenue": r["revenue"]}
 
+    # 데이터 밖 날짜를 '판매 0'으로 세지 않도록, 두 구간 모두 데이터 기간 안에 들어가는 같은 길이로 줄인다
+    days = max(0, min(days, (pivot - F.DATA_START).days, (F.DATA_END - pivot).days + 1))
     before = window(pivot - timedelta(days=days), pivot)
     after = window(pivot, pivot + timedelta(days=days))
     rate = after["qty"] / before["qty"] - 1 if before["qty"] else None

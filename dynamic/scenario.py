@@ -4,15 +4,11 @@ save_scenario를 호출해야 Scenario 노드로 온톨로지에 남는다(결�
 """
 import json
 import uuid
-from datetime import date, datetime, time
+from datetime import date
 
 from kinetic import functions as F
 from kinetic import writeback as W
 from kinetic.writeback import DEFAULT_LOG
-
-
-def _period(start, end):
-    return {"start": datetime.combine(start, time()), "until": F._day_end(end)}
 
 
 def _ingredient(driver, key):
@@ -32,17 +28,24 @@ def _supplier(driver, key):
     return rows[0]["id"]
 
 
+def _price(driver, iid, name, as_of, prices=None):
+    prices = prices if prices is not None else F.latest_prices(driver, as_of)
+    if iid not in prices:
+        raise ValueError(f"{as_of} 이전에 {name}을(를) 산 기록이 없어 현재 단가를 알 수 없습니다")
+    return prices[iid]
+
+
 def price_shock(driver, ingredient, pct: float, start: date, end: date):
     """재료 단가가 pct만큼 오르면(음수면 내리면) 메뉴별 원가·마진이 어떻게 바뀌고, 기간 판매량 기준 얼마를 더 쓰나."""
     iid, name = _ingredient(driver, ingredient)
-    price = F.latest_prices(driver, end)[iid]
+    price = _price(driver, iid, name, end)
     costs = {r["menu_id"]: r for r in F.menu_costs(driver, as_of=end)}
     records = driver.execute_query(
         """
         MATCH (m:MenuItem)-[u:USES]->(:Ingredient {ingredient_id: $iid})
         OPTIONAL MATCH (o:Order)-[x:CONTAINS]->(m) WHERE $start <= o.ordered_at < $until
         RETURN m.menu_id AS mid, u.qty_per_serving AS q, coalesce(sum(x.qty), 0) AS sold
-        """, iid=iid, **_period(start, end)).records
+        """, iid=iid, **F._period(start, end)).records
     menus = []
     for r in records:
         c = costs[r["mid"]]
@@ -73,10 +76,11 @@ def supplier_switch(driver, ingredients, supplier_id: str, start: date, end: dat
         usage = driver.execute_query(
             """MATCH (s:StockMovement)-[:MOVES]->(:Ingredient {ingredient_id: $i})
                WHERE s.movement_type IN ['소진', '폐기'] AND $start <= s.moved_at < $until
-               RETURN -sum(s.qty) AS used""", i=iid, **_period(start, end)).records[0]["used"] or 0.0
+               RETURN -sum(s.qty) AS used""", i=iid, **F._period(start, end)).records[0]["used"] or 0.0
         new = offer[0]["p"]
-        rows.append({"ingredient_id": iid, "ingredient": name, "current_price": prices[iid], "new_price": new,
-                     "usage": usage, "impact": usage * (new - prices[iid])})
+        current = _price(driver, iid, name, end, prices)
+        rows.append({"ingredient_id": iid, "ingredient": name, "current_price": current, "new_price": new,
+                     "usage": usage, "impact": usage * (new - current)})
     return {"type": "업체변경",
             "params": {"supplier_id": supplier_id, "ingredients": [r["ingredient_id"] for r in rows],
                        "start": start.isoformat(), "end": end.isoformat()},

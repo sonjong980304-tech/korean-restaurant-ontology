@@ -159,7 +159,8 @@ def test_driver():
     uri = os.environ.get("NEO4J_TEST_URI", "")
     if not uri.endswith(":7689"):
         pytest.skip("테스트 전용 Neo4j(NEO4J_TEST_URI, 7689)가 설정되지 않음 — 실데이터 DB를 지우지 않기 위해 건너뜀")
-    driver = GraphDatabase.driver(uri, auth=(os.environ["NEO4J_USER"], os.environ["NEO4J_PASSWORD"]))
+    driver = GraphDatabase.driver(uri, auth=(os.environ["NEO4J_USER"], os.environ["NEO4J_PASSWORD"]),
+                                  notifications_min_severity="OFF")
     try:
         driver.verify_connectivity()
     except Exception:

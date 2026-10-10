@@ -1,4 +1,6 @@
 """Kinetic Action — 데이터를 바꾸는 행동. 검증을 통과하면 실행, 아니면 거부. 둘 다 기록된다."""
+from datetime import date
+
 import pandas as pd
 import streamlit as st
 from common import db_or_stop, refresh, setup, won
@@ -16,16 +18,16 @@ def show(result):
     refresh()
 
 
-menus = {r["menu_id"]: r for r in F.menu_costs(d, as_of=A.W.stamp(None).date())}
+menus = {r["menu_id"]: r for r in F.menu_costs(d, as_of=date.today())}   # 검증과 같은 기준(오늘)
 avail = {r["id"]: r["a"] for r in d.execute_query("MATCH (m:MenuItem) RETURN m.menu_id AS id, m.is_available AS a").records}
 label = lambda mid: f"{menus[mid]['menu']} · {menus[mid]['price']:,}원 · 원가 {menus[mid]['cost']:,.0f}원"  # noqa: E731
 
 t1, t2, t3, t4 = st.tabs(["가격 변경", "품절·판매 재개", "발주", "기록"])
 with t1:
     st.caption(f"규칙: 새 가격은 원가보다 높아야 하고, 한 번에 ±{A.MAX_PRICE_STEP:.0%}까지만 바꿀 수 있습니다.")
+    mid = st.selectbox("메뉴", list(menus), format_func=label, key="price_menu")   # 폼 밖: 바꾸면 기본 가격도 따라 바뀜
     with st.form("price"):
-        mid = st.selectbox("메뉴", list(menus), format_func=label)
-        new = st.number_input("새 가격(원)", min_value=0, step=500, value=int(menus[mid]["price"]))
+        new = st.number_input("새 가격(원)", min_value=0, step=500, value=int(menus[mid]["price"]), key=f"price_{mid}")
         who = st.text_input("실행자", "사장")
         why = st.text_input("사유", placeholder="예: 양파 단가 인상 반영")
         if st.form_submit_button("가격 변경 실행", type="primary"):

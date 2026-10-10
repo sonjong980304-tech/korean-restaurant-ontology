@@ -25,7 +25,7 @@ ROOT = Path(__file__).resolve().parents[1]
 MAX_STEPS = 6            # 도구 호출 라운드 상한
 MAX_ROWS = 50            # Cypher 결과 행 상한
 MAX_TOOL_CHARS = 6000    # LLM에 돌려주는 도구 결과 길이 상한
-DATA_PERIOD = ("2026-07-01", "2026-09-30")
+DATA_PERIOD = (F.DATA_START.isoformat(), F.DATA_END.isoformat())
 
 # ── 온톨로지 설명(시스템 프롬프트) ──
 RULES = f"""## 해석 규칙
@@ -89,9 +89,15 @@ WRITE = re.compile(
     re.IGNORECASE)
 
 
+# 백틱(`이름`)으로 키워드를 감싸면 정규식을 피할 수 있고, 읽기 모드 프로시저(apoc.load 등)는 읽기 전용
+# 트랜잭션도 막지 못한다(외부 접속·설정 열람). 그래서 백틱·CALL·apoc·dbms는 아예 허용하지 않는다.
+# 주석을 지우고 검사하면 따옴표 안의 '/*' … '*/'로 금지어를 감출 수 있다 → 주석 자체를 금지하고 원문 그대로 검사.
+# LOAD(CSV)는 읽기 절이라 읽기 전용 트랜잭션도 막지 못하고 외부 URL에 접속할 수 있어 함께 금지한다.
+FORBIDDEN = re.compile(r"`|\bCALL\b|apoc|dbms|//|/\*|\*/|\bLOAD\b", re.IGNORECASE)
+
+
 def is_read_only(query: str) -> bool:
-    no_comments = re.sub(r"//.*?$|/\*.*?\*/", "", query, flags=re.MULTILINE | re.DOTALL)
-    return WRITE.search(no_comments) is None
+    return WRITE.search(query) is None and FORBIDDEN.search(query) is None
 
 
 def _read_query(driver, query):
@@ -106,7 +112,7 @@ def _read_query(driver, query):
 
 def run_cypher(driver, query: str):
     if not is_read_only(query):
-        return {"error": "읽기 전용 질의만 허용됩니다(CREATE·MERGE·SET·DELETE 등 금지)."}
+        return {"error": "읽기 전용 MATCH 질의만 허용됩니다(CREATE·MERGE·SET·DELETE·CALL·백틱 등 금지)."}
     try:
         rows = _read_query(driver, query)
     except Exception as e:  # noqa: BLE001 — 오류 내용을 LLM에 돌려줘 스스로 고치게 한다
@@ -200,6 +206,10 @@ def _call_tool(driver, name, args, proposals):
         return {"error": f"{type(e).__name__}: {e}"[:400]}
 
 
+def _reject_constant(name):
+    raise ValueError(f"{name}은(는) 허용되지 않는 숫자입니다")
+
+
 def _to_llm(result):
     text = json.dumps(result, ensure_ascii=False, default=str)
     return text if len(text) <= MAX_TOOL_CHARS else text[:MAX_TOOL_CHARS] + " …(잘림)"
@@ -234,10 +244,11 @@ def ask(driver, question, llm=None, history=()):
             for c in msg.tool_calls]})
         for c in msg.tool_calls:
             try:
-                args = json.loads(c.function.arguments or "{}")
-            except json.JSONDecodeError:
-                args = {}
-            result = _call_tool(driver, c.function.name, args, proposals)
+                args = json.loads(c.function.arguments or "{}", parse_constant=_reject_constant)
+                result = _call_tool(driver, c.function.name, args, proposals) if isinstance(args, dict) \
+                    else {"error": "인자는 JSON 객체여야 합니다"}
+            except ValueError as e:                    # 깨진 JSON, NaN·Infinity
+                args, result = {}, {"error": f"인자를 읽을 수 없습니다: {e}"}
             evidence.append({"tool": c.function.name, "args": args, "result": result})
             messages.append({"role": "tool", "tool_call_id": c.id, "content": _to_llm(result)})
     return {"answer": f"도구 호출이 {MAX_STEPS}단계를 넘어 멈췄습니다. 질문을 더 구체적으로 해 주세요.",

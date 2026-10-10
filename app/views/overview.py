@@ -1,4 +1,6 @@
 """개요 — 이번 달 핵심 숫자와 지금 볼 경보."""
+import html
+
 import pandas as pd
 import streamlit as st
 from common import MONTHS, db_or_stop, pct, setup, won, won_short
@@ -41,11 +43,11 @@ st.subheader("지금 볼 것")
 left, right = st.columns([3, 2])
 with left:
     worst = x["wait"][0]
-    st.markdown(f'<div class="card"><b>놓치는 손님</b> — {worst["party_type"]} 손님 {worst["visits"]:,}팀 중 '
+    st.markdown(f'<div class="card"><b>놓치는 손님</b> — {html.escape(worst["party_type"])} 손님 {worst["visits"]:,}팀 중 '
                 f'{worst["abandoned"]:,}팀({pct(worst["abandon_rate"])})이 기다리다 떠났습니다. '
                 f'착석한 팀의 평균 대기 {worst["avg_wait_min"]:.1f}분.</div>', unsafe_allow_html=True)
-    dogs = [r["menu"] for r in x["menu"] if r["quadrant"] == "Dog"]
-    stars = [r["menu"] for r in x["menu"] if r["quadrant"] == "Star"]
+    dogs = [html.escape(r["menu"]) for r in x["menu"] if r["quadrant"] == "Dog"]
+    stars = [html.escape(r["menu"]) for r in x["menu"] if r["quadrant"] == "Star"]
     st.markdown(f'<div class="card"><b>메뉴</b> — 잘 팔리고 많이 남는 Star: {", ".join(stars) or "없음"}. '
                 f'안 팔리고 덜 남는 Dog(정리 후보): {", ".join(dogs) or "없음"}.</div>', unsafe_allow_html=True)
     if prev:

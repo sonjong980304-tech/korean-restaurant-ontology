@@ -39,9 +39,16 @@ def replay(driver, log_path=DEFAULT_LOG):
         handlers.update({"scenario": scenario.replay_event, "decision": decision.replay_event})
     except ImportError:
         pass
+    import warnings
+
     events = read(log_path)
     for event in events:
-        handlers[event["kind"]](driver, event)
+        try:
+            handlers[event["kind"]](driver, event)
+        except (ValueError, KeyError) as e:          # 한 건이 실패해도 나머지는 계속 복원한다
+            warnings.warn(f"재생 실패(건너뜀): {event.get('kind')} "
+                          f"{event.get('action_id') or event.get('scenario_id') or event.get('decision_id')} — {e}",
+                          stacklevel=2)
     return len(events)
 
 

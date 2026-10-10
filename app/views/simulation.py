@@ -1,4 +1,5 @@
 """Dynamic — 수요 예측, What-if 시나리오, 의사결정 기록."""
+import math
 from collections import defaultdict
 from datetime import date
 
@@ -36,23 +37,29 @@ with t1:
                      hide_index=True, use_container_width=True, height=420,
                      column_config={"예상": st.column_config.NumberColumn(format="%.1f")})
     with right:
-        st.markdown("**재료 필요량과 추천 발주** — 추천 = 필요량 + 안전재고 − 현재고")
+        st.markdown("**재료 필요량과 추천 발주** — 추천 = 필요량 + 안전재고 − 현재고 − 입고 예정")
         rq = pd.DataFrame(req)
-        st.dataframe(rq[["ingredient", "unit", "need", "stock", "shortage", "recommended_qty", "best_supplier", "best_price"]]
-                     .rename(columns={"ingredient": "재료", "unit": "단위", "need": "필요", "stock": "현재고",
+        if not rq.empty:
+            st.caption(f"필요량 = 기준일 다음날부터 예측일까지 {rq['horizon_days'].iloc[0]}일치 예측 판매 × 레시피")
+        st.dataframe(rq[["ingredient", "unit", "need", "stock", "incoming", "shortage", "recommended_qty", "best_supplier",
+                         "best_price"]]
+                     .rename(columns={"ingredient": "재료", "unit": "단위", "need": "필요", "stock": "현재고", "incoming": "입고 예정",
                                       "shortage": "부족", "recommended_qty": "추천 발주", "best_supplier": "최저가 업체",
                                       "best_price": "단가"}),
                      hide_index=True, use_container_width=True, height=420,
                      column_config={c: st.column_config.NumberColumn(format="%,.0f")
-                                    for c in ("필요", "현재고", "부족", "추천 발주")})
+                                    for c in ("필요", "현재고", "입고 예정", "부족", "추천 발주")})
     todo = defaultdict(dict)
     for r in req:
         if r["recommended_qty"] > 0 and r["best_supplier"]:
-            todo[r["best_supplier"]][r["ingredient_id"]] = round(r["recommended_qty"])
+            todo[r["best_supplier"]][r["ingredient_id"]] = math.ceil(r["recommended_qty"])   # 0.4개도 1개로 올림
     if todo:
         st.markdown("추천대로 발주하면 업체별로 발주 액션이 하나씩 실행됩니다(예산 등 규칙 검증 포함): "
                     + ", ".join(f"{s} {len(v)}개 품목" for s, v in todo.items()))
-        if st.button("추천량으로 발주 실행", type="primary"):
+        flag = f"po_done_{target}_{as_of}"
+        if st.button("추천량으로 발주 실행", type="primary", disabled=st.session_state.get(flag, False),
+                     help="한 번 실행하면 같은 날짜 조합으로는 다시 누를 수 없습니다(중복 발주 방지)"):
+            st.session_state[flag] = True
             for sid, lines in todo.items():
                 r = A.create_purchase_order(d, sid, lines, actor="사장", reason=f"{target} 수요 예측 기반 추천 발주")
                 (st.success if r["status"] == "실행" else st.error)(f"{sid}: {r['status']} — {r['message']}")
@@ -144,7 +151,10 @@ with t5:
     days = c3.slider("비교 기간(일)", 7, 30, 14)
     r = D.sales_before_after(d, mid, pivot, days)
     a, b, c = st.columns(3)
-    a.metric(f"이전 {days}일 판매", f"{r['before']['qty']:,}개", won(r["before"]["revenue"]), delta_color="off")
-    b.metric(f"이후 {days}일 판매", f"{r['after']['qty']:,}개", won(r["after"]["revenue"]), delta_color="off")
+    used = r["days"]
+    a.metric(f"이전 {used}일 판매", f"{r['before']['qty']:,}개", help=f"매출 {won(r['before']['revenue'])}")
+    b.metric(f"이후 {used}일 판매", f"{r['after']['qty']:,}개", help=f"매출 {won(r['after']['revenue'])}")
+    if used < days:
+        st.caption(f"데이터 기간(7/1~9/30) 밖은 비교할 수 없어 {days}일 → {used}일로 줄여 비교했습니다.")
     c.metric("판매량 변화", "-" if r["qty_change_rate"] is None else f"{r['qty_change_rate'] * 100:+.1f}%")
     st.caption("결정 효과 추적용: 결정한 날 앞뒤의 같은 길이 기간을 비교합니다. 계절·요일 구성 차이는 따로 고려하지 않습니다.")

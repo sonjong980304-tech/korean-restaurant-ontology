@@ -1,4 +1,5 @@
 """Dynamic — GraphRAG AI 매니저. 그래프에서 찾은 근거로만 답하고, 액션은 제안만 한다."""
+import html
 import json
 
 import pandas as pd
@@ -33,16 +34,17 @@ def show_evidence(evidence):
 def show_proposals(i, proposals):
     for j, p in enumerate(proposals):
         done = st.session_state.get(f"done_{i}_{j}")
-        st.markdown(f'<div class="card"><b>제안 — {ACTION_KO.get(p["action_type"], p["action_type"])}</b><br>'
-                    f'{json.dumps(p["args"], ensure_ascii=False)}<br>{p["reason"]}</div>', unsafe_allow_html=True)
+        try:                                   # 승인 화면에는 서버가 계산한 '실제로 바뀌는 내용'을 보여 준다
+            preview, ok = A.describe_proposal(d, p), True
+        except ValueError as e:
+            preview, ok = f"실행할 수 없는 제안: {e}", False
+        st.markdown(f'<div class="card"><b>제안 — {html.escape(ACTION_KO.get(str(p.get("action_type")), "알 수 없음"))}</b><br>'
+                    f'{html.escape(preview)}<br><span style="color:#8a897f">AI가 든 이유: '
+                    f'{html.escape(str(p.get("reason", "")))}</span></div>', unsafe_allow_html=True)
         if done:
             (st.success if done["status"] == "실행" else st.error)(f"{done['status']} — {done['message']}")
-        elif p["action_type"] in A.ACTIONS and st.button("승인하고 실행", key=f"ok_{i}_{j}", type="primary"):
-            try:
-                st.session_state[f"done_{i}_{j}"] = A.ACTIONS[p["action_type"]](
-                    d, **p["args"], actor="사장(AI 제안 승인)", reason=p["reason"])
-            except (TypeError, ValueError) as e:
-                st.session_state[f"done_{i}_{j}"] = {"status": "거부", "message": f"제안 형식 오류: {e}"}
+        elif ok and st.button("승인하고 실행", key=f"ok_{i}_{j}", type="primary"):
+            st.session_state[f"done_{i}_{j}"] = A.execute_proposal(d, p, actor="사장(AI 제안 승인)")
             refresh()
             st.rerun()
 
@@ -71,6 +73,8 @@ if question:
         try:
             out = G.ask(d, question, history=history)
         except Exception as e:  # noqa: BLE001
-            out = {"answer": f"AI 호출에 실패했습니다: {type(e).__name__}: {e}", "evidence": [], "proposals": []}
+            # 오류 원문에는 키 일부 같은 민감한 값이 섞일 수 있어 종류만 보여 준다
+            out = {"answer": f"AI 호출에 실패했습니다({type(e).__name__}). 잠시 후 다시 시도하거나 .env의 API 키를 확인하세요.",
+                   "evidence": [], "proposals": []}
     chat.append({"role": "assistant", "content": out["answer"], "evidence": out["evidence"], "proposals": out["proposals"]})
     st.rerun()

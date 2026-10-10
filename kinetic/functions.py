@@ -6,6 +6,9 @@
 from datetime import date, datetime, time, timedelta
 
 
+DATA_START, DATA_END = date(2026, 7, 1), date(2026, 9, 30)   # 원천 데이터 기간(예측·비교의 경계)
+
+
 def _day_end(d: date) -> datetime:
     """d일 하루가 끝나는 시각(다음날 0시) — '기준일 포함'을 '< 다음날 0시'로 표현한다."""
     return datetime.combine(d + timedelta(days=1), time())
@@ -25,7 +28,8 @@ SLOT = "CASE WHEN v.arrived_at.hour < 16 THEN '점심' ELSE '저녁' END"
 
 LATEST_PRICE = """
     CALL (i) {
-      MATCH (po:PurchaseOrder)-[x:ORDERS_ITEM]->(i) WHERE po.ordered_at < $until
+      OPTIONAL MATCH (po:PurchaseOrder)-[x:ORDERS_ITEM]->(i)
+      WHERE po.ordered_at < $until AND NOT po.status IN ['요청', '취소']   // 아직 사지 않은 발주는 단가 근거가 아님
       RETURN x.unit_price AS unit_price ORDER BY po.ordered_at DESC LIMIT 1
     }"""
 
@@ -35,7 +39,7 @@ def latest_prices(driver, as_of: date):
     records = driver.execute_query(
         "MATCH (i:Ingredient)" + LATEST_PRICE + " RETURN i.ingredient_id AS iid, unit_price",
         until=_day_end(as_of)).records
-    return {r["iid"]: r["unit_price"] for r in records}
+    return {r["iid"]: r["unit_price"] for r in records if r["unit_price"] is not None}
 
 
 def menu_costs(driver, as_of: date):
@@ -43,9 +47,9 @@ def menu_costs(driver, as_of: date):
     records = driver.execute_query(
         """
         MATCH (m:MenuItem)-[u:USES]->(i:Ingredient)""" + LATEST_PRICE + """
-        WITH m, sum(u.qty_per_serving * unit_price) AS cost
+        WITH m, sum(u.qty_per_serving * unit_price) AS cost, count(*) - count(unit_price) AS unpriced
         RETURN m.menu_id AS menu_id, m.name AS menu, m.price AS price, cost,
-               m.price - cost AS margin, cost / m.price AS cost_ratio
+               m.price - cost AS margin, cost / m.price AS cost_ratio, unpriced
         ORDER BY menu_id
         """,
         until=_day_end(as_of),

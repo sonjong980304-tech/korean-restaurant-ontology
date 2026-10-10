@@ -82,7 +82,8 @@ def db_or_stop():
     try:
         return driver()
     except Exception as e:  # noqa: BLE001
-        st.error(f"Neo4j(bolt://localhost:7688)에 연결할 수 없습니다. 컨테이너를 켜 주세요: docker start restaurant-neo4j\n\n{e}")
+        st.error(f"Neo4j(bolt://localhost:7688)에 연결할 수 없습니다({type(e).__name__}). "
+                 "컨테이너를 켜 주세요: docker start restaurant-neo4j")
         st.stop()
 
 
@@ -122,13 +123,16 @@ def graph(nodes, edges, height=560):
                   "size": n.get("size", 14)} for n in nodes]
     vis_edges = [{"from": e["from"], "to": e["to"], "label": e.get("label", ""), "title": e.get("title", ""),
                   "width": e.get("width", 1), "dashes": e.get("dashes", False)} for e in edges]
+    def safe_json(x):                      # 문자열 속 </script>로 스크립트 블록을 탈출하지 못하게
+        return json.dumps(x, ensure_ascii=False).replace("<", "\\u003c")
+
     page = f"""
 <div id="g" style="height:{height}px;background:{SURFACE};border-radius:16px;border:1px solid rgba(240,239,236,.06)"></div>
 <script src="https://unpkg.com/vis-network@9.1.9/standalone/umd/vis-network.min.js"></script>
 <script>
 const net = new vis.Network(document.getElementById('g'),
-  {{nodes: new vis.DataSet({json.dumps(vis_nodes, ensure_ascii=False)}),
-    edges: new vis.DataSet({json.dumps(vis_edges, ensure_ascii=False)})}},
+  {{nodes: new vis.DataSet({safe_json(vis_nodes)}),
+    edges: new vis.DataSet({safe_json(vis_edges)})}},
   {{nodes: {{shape: 'dot', borderWidth: 2, font: {{color: '{TEXT}', size: 16, face: 'Pretendard, sans-serif',
              strokeWidth: 3, strokeColor: '{SURFACE}'}}}},
     edges: {{color: {{color: '#5a5955', highlight: '{TEXT_2}', hover: '{TEXT_2}'}},

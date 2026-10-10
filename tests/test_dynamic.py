@@ -101,3 +101,57 @@ def test_결정_전후_판매비교(kdb):
     assert (r["before"]["qty"], r["before"]["revenue"]) == (3, 24000)
     assert (r["after"]["qty"], r["after"]["revenue"]) == (10, 80000)
     assert r["qty_change_rate"] == pytest.approx(10 / 3 - 1)
+
+
+# ── 리뷰 반영 회귀 테스트 ──
+def test_예측은_데이터_시작일_이전_날짜를_평균에서_뺀다(kdb):
+    """8/27(목), 10주: 기준일 10개 중 7/1 이전 2개(6/25·6/18) 제외 → 8일로 나눔. 김치찌개 8/20에 3그릇 → 3/8"""
+    rows = by(FC.forecast_menu_demand(kdb, date(2026, 8, 27), weeks=10), "menu_id")
+    assert rows["M-A"]["expected_qty"] == pytest.approx(3 / 8)
+    assert len(rows["M-A"]["basis_days"]) == 8
+
+
+def test_입고예정_발주는_추천발주량에서_뺀다(fresh_kdb, tmp_path):
+    A.create_purchase_order(fresh_kdb, "S2", {"PORK": 1000}, actor="사장", log_path=tmp_path / "e.jsonl")
+    rows = by(FC.ingredient_requirements(fresh_kdb, date(2026, 9, 10), as_of=date(2026, 9, 30), weeks=4), "ingredient_id")
+    assert rows["PORK"]["incoming"] == pytest.approx(1000)
+    assert rows["PORK"]["recommended_qty"] == 0             # 525 − 1,000 → 0
+
+
+def test_추천발주는_기준일과_예측일_사이_소비도_더한다(kdb):
+    """기준일 9/9(수) → 예측일 9/11(금): 9/10(목) 김치찌개 3.25 + 9/11(금) 0 → 양파 325g 이상"""
+    rows = by(FC.ingredient_requirements(kdb, date(2026, 9, 11), as_of=date(2026, 9, 9), weeks=4), "ingredient_id")
+    assert rows["ONION"]["horizon_days"] == 2
+    assert rows["ONION"]["need"] == pytest.approx(3.25 * 100 + 1.5 * 50)
+
+
+def test_전후비교는_데이터_기간_안에서_같은_길이로_줄인다(kdb):
+    r = D.sales_before_after(kdb, "M-A", date(2026, 9, 20), days=14)
+    assert r["days"] == 11                                   # 9/20~9/30만 데이터가 있음
+
+
+def test_매입기록_전_기간의_원가충격은_명확한_오류(kdb):
+    with pytest.raises(ValueError, match="산 기록이 없어"):
+        SC.price_shock(kdb, "ONION", 0.1, date(2026, 7, 1), date(2026, 7, 31))
+
+
+def test_없는_시나리오로_결정하면_오류(fresh_kdb, tmp_path):
+    with pytest.raises(ValueError, match="없는 시나리오"):
+        D.record_decision(fresh_kdb, "x", "", "사장", scenario_ids=["SCN-NONE"], log_path=tmp_path / "e.jsonl")
+
+
+def test_입고예정은_기준일_시점으로_판단한다(fresh_kdb):
+    """9/20 두부 300g 발주(9/22 입고, 상태 입고완료) + 9/25 두부 200g 발주(확정, 미입고).
+    기준일 9/21 → 9/20 발주만 입고 예정 300g(9/25 발주는 아직 없음) / 기준일 9/30 → 9/25 발주만 200g"""
+    fresh_kdb.execute_query("""
+        MATCH (s:Supplier {supplier_id:'S1'}), (i:Ingredient {ingredient_id:'TOFU'})
+        CREATE (a:PurchaseOrder {po_id:'PO-A', ordered_at: localdatetime('2026-09-20T22:00'), expected_at: date('2026-09-22'),
+                                 status:'입고완료'})-[:ORDERS_ITEM {qty: 300.0, unit_price: 4.0}]->(i), (a)-[:ISSUED_TO]->(s)
+        CREATE (r:StockMovement {movement_id:'R-A', moved_at: localdatetime('2026-09-22T09:00'), movement_type:'입고',
+                                 qty: 300.0})-[:MOVES]->(i), (r)-[:RECEIVED_FOR]->(a)
+        CREATE (b:PurchaseOrder {po_id:'PO-B', ordered_at: localdatetime('2026-09-25T22:00'), expected_at: date('2026-09-27'),
+                                 status:'확정'})-[:ORDERS_ITEM {qty: 200.0, unit_price: 4.0}]->(i), (b)-[:ISSUED_TO]->(s)""")
+    early = by(FC.ingredient_requirements(fresh_kdb, date(2026, 9, 24), as_of=date(2026, 9, 21), weeks=4), "ingredient_id")
+    late = by(FC.ingredient_requirements(fresh_kdb, date(2026, 9, 10), as_of=date(2026, 9, 30), weeks=4), "ingredient_id")
+    assert early["TOFU"]["incoming"] == pytest.approx(300)
+    assert late["TOFU"]["incoming"] == pytest.approx(200)

@@ -7,7 +7,7 @@
 | 레이어 | 비유 | 폴더 | 상태 |
 |---|---|---|---|
 | **Semantic** (의미) | 가게의 지도 — 무엇이 있고 어떻게 연결되나 | `semantic/` | ✅ 2·3단계 완료 |
-| **Kinetic** (운동) | 가게의 손발 — 지표 계산(Function)과 행동(Action) | `kinetic/` | 4·5단계 예정 |
+| **Kinetic** (운동) | 가게의 손발 — 지표 계산(Function)과 행동(Action) | `kinetic/` | ✅ 4단계 Function / 5단계 Action 예정 |
 | **Dynamic** (동적) | 가게의 두뇌 — 예측·시뮬레이션·AI 매니저(GraphRAG) | `dynamic/` | 6·7단계 예정 |
 | 앱 | 사장님 대시보드(Streamlit) | `app/` | 8단계 예정 |
 
@@ -71,6 +71,44 @@ Neo4j 화면에서 `queries.cypher`의 예시 질문 4개를 붙여 넣어 실�
 | `sources/master.yaml` | 가게의 '진짜' 기준정보(메뉴·레시피·재료·직원). **파이프라인은 이 파일을 보지 않음** |
 | `sources/generate.py` | 4개 시스템의 가상 데이터 생성기 |
 
+## Kinetic Function — 읽기 전용 지표 (`kinetic/functions.py`)
+
+온톨로지를 읽어 계산만 하고 데이터는 바꾸지 않습니다. 모두 `driver`와 기간(또는 기준일)을 받습니다.
+
+| 함수 | 답하는 질문 | 계산 방법 |
+|---|---|---|
+| `menu_costs(as_of)` | 메뉴 하나 팔면 얼마 남나? | 레시피 사용량 × 기준일까지 가장 최근 매입단가 |
+| `menu_engineering(start, end)` | 어떤 메뉴를 밀고 어떤 메뉴를 뺄까? | Kasavana–Smith 4분면: 인기(판매비중 ≥ 0.7 ÷ 메뉴 수) × 마진(≥ 판매 가중평균) → Star·Plowhorse·Puzzle·Dog (주류·음료 제외) |
+| `table_turnover(start, end)` | 테이블이 몇 번 돌았나? | 날짜·점심/저녁별 착석 팀 ÷ 테이블 수, 착석 인원 ÷ 좌석 수 |
+| `waiting_stats(start, end)` | 누구를 놓치나? | 동행유형별 대기 이탈률, 착석 팀 평균 대기시간 |
+| `monthly_cost_ratio()` | 원가율이 오르나? | ERP 전표: 식재료비 차변 ÷ 수익 계정 대변 |
+| `usage_variance(start, end)` | 레시피보다 더 쓰나, 얼마나 버리나? | 조리지시 기준 레시피량 vs 실제 소진, 폐기 ÷ 전체 사용(반찬 포함) |
+| `stock_status(as_of)` | 무엇이 곧 떨어지나? | 재고이동 합계, 최근 7일 하루 평균 사용, 소진 예상일, 안전재고 미달 |
+| `customer_segments(as_of)` | 단골·VIP는 누구, 떠나는 손님은? | 아래 규칙(착석한 방문만 셈) |
+
+고객 세그먼트 규칙(위에서부터 우선): **이탈위험** 마지막 방문 시점엔 단골이었는데 30일 이상 미방문 → **단골** 최근 90일 4회 이상 + 마지막 방문 30일 이내 → **VIP** 단골 중 1회 평균 결제액 상위 20% → **재방문** 누적 2회 이상 → **신규** 1회.
+
+## 테스트 구조
+
+| 파일 | 대상 DB | 확인하는 것 |
+|---|---|---|
+| `test_schema.py`, `test_pipeline.py` | 본 Neo4j(7688) | 설계도·파이프라인·계보·적재 |
+| `test_functions.py` + `conftest.py` | **테스트 전용 Neo4j(7689)** | 손으로 정답을 계산한 작은 가게로 각 함수의 정답 검증(TDD) |
+| `test_kinetic_acceptance.py` | 본 Neo4j(7688) | 실데이터에서 '심어 둔 패턴'이 잡히는지 |
+
+Docker 메모리가 2GB 이하면 두 Neo4j를 동시에 띄울 수 없습니다(메모리 부족으로 종료됨). 번갈아 실행하세요.
+
+```bash
+# 테스트 전용 Neo4j 최초 1회 생성(저장소 없음, 끄면 데이터 사라짐)
+docker run -d --name restaurant-neo4j-test -p 127.0.0.1:7689:7687 -e NEO4J_AUTH="neo4j/<.env의 비밀번호>" \
+  -e NEO4J_server_memory_heap_max__size=384M -e NEO4J_server_memory_pagecache_size=64M neo4j:5-community
+
+docker stop restaurant-neo4j && docker start restaurant-neo4j-test
+.venv/bin/python -m pytest -q tests/test_functions.py      # 함수 정답(10개)
+docker stop restaurant-neo4j-test && docker start restaurant-neo4j
+.venv/bin/python -m pytest -q tests                        # 나머지(35개, 함수 테스트는 건너뜀)
+```
+
 ## 고객은 3개 축으로 나눈다
 
 | 축 | 어디에 | 값 |
@@ -96,7 +134,7 @@ Neo4j 화면에서 `queries.cypher`의 예시 질문 4개를 붙여 넣어 실�
 9. 주방 인원 부족 → 조리시간 증가 (화·수 점심, 목 저녁)
 10. 홀 아르바이트가 적은 평일 → 테이블 정리 지연
 11. 레시피보다 평균 3% 더 씀, 저녁 제육·불고기는 8%
-12. 상추·콩나물 폐기율이 높음
+12. 유통기한 4일 이하 재료(상추·콩나물·소불고기·바지락) 폐기율이 높음(약 7~8%, 나머지 냉장 채소 1~4%)
 13. (결과로 생긴 패턴) 룸이 4개뿐이라 회식 손님 이탈률이 약 37%
 
 ## 단순화한 가정

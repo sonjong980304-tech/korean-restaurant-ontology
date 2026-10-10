@@ -39,7 +39,8 @@ def test_확정한_규모가_그래프에_그대로(g):
 
 
 def test_설계도의_모든_연결이_실제로_채워진다(g):
-    empty = [l["name"] for l in SCHEMA["links"] if not g.links.get(l["name"])]
+    # ONTOLOGY 연결(액션·결정)은 원천 데이터가 아니라 사람이 실행할 때 생기므로 제외
+    empty = [l["name"] for l in SCHEMA["links"] if l.get("system") != "ONTOLOGY" and not g.links.get(l["name"])]
     assert empty == []
 
 

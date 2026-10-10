@@ -61,6 +61,12 @@ def tiny_store():
     # ── 매입 단가: 8/1 발주 → 9/1 양파만 3.0 → 4.2원/g 인상 ──
     g.node("Supplier", "S1", {"supplier_id": "S1", "name": "테스트상회", "category": "종합", "lead_time_days": 1,
                               "payment_terms_days": 30}, "SCM")
+    g.node("Supplier", "S2", {"supplier_id": "S2", "name": "대체정육", "category": "육류", "lead_time_days": 2,
+                              "payment_terms_days": 30}, "SCM")
+    # 현재 공급 단가표: S1은 전 품목(9/1 이후 단가), S2는 돼지만 11원/g(1원 저렴)
+    for iid, price in (("ONION", 4.2), ("PORK", 12.0), ("TOFU", 4.0), ("SOJU", 1300.0)):
+        g.link("SUPPLIES", "S1", iid, {"unit_price": price, "min_order_qty": 1.0})
+    g.link("SUPPLIES", "S2", "PORK", {"unit_price": 11.0, "min_order_qty": 1.0})
     for po, when, prices in (("PO1", "2026-08-01 22:00", {"ONION": 3.0, "PORK": 12.0, "TOFU": 4.0, "SOJU": 1300.0}),
                              ("PO2", "2026-09-01 22:00", {"ONION": 4.2})):
         g.node("PurchaseOrder", po, {"po_id": po, "ordered_at": dt(when), "expected_at": dt(when).date(),
@@ -149,7 +155,7 @@ def tiny_store():
 
 
 @pytest.fixture(scope="session")
-def kdb():
+def test_driver():
     uri = os.environ.get("NEO4J_TEST_URI", "")
     if not uri.endswith(":7689"):
         pytest.skip("테스트 전용 Neo4j(NEO4J_TEST_URI, 7689)가 설정되지 않음 — 실데이터 DB를 지우지 않기 위해 건너뜀")
@@ -158,6 +164,19 @@ def kdb():
         driver.verify_connectivity()
     except Exception:
         pytest.skip("테스트 전용 Neo4j가 꺼져 있음")
-    P.load(driver, S.load(), tiny_store())
     yield driver
     driver.close()
+
+
+@pytest.fixture(scope="module")
+def kdb(test_driver):
+    """읽기 전용 테스트용: 모듈마다 작은 가게를 새로 적재한다(다른 모듈의 액션이 섞이지 않게)."""
+    P.load(test_driver, S.load(), tiny_store())
+    return test_driver
+
+
+@pytest.fixture
+def fresh_kdb(test_driver):
+    """데이터를 바꾸는 테스트용: 테스트마다 새로 적재한다."""
+    P.load(test_driver, S.load(), tiny_store())
+    return test_driver

@@ -374,6 +374,10 @@ if __name__ == "__main__":
     print(f"그래프 생성: 노드 {sum(nodes.values()):,}개 / 선 {sum(links.values()):,}개 ({time.time() - t0:.1f}초)")
     with get_driver() as driver:
         load(driver, schema, g)
+        from kinetic import writeback
+
+        replayed = writeback.replay(driver)                # 사람이 남긴 액션·시나리오·결정을 다시 덮어씌운다
+        print(f"write-back 재생: {replayed}건")
         n = driver.execute_query("MATCH (n) RETURN count(n) AS c").records[0]["c"]
         r = driver.execute_query("MATCH ()-[r]->() RETURN count(r) AS c").records[0]["c"]
     print(f"Neo4j 적재 완료: 노드 {n:,}개 / 선 {r:,}개 ({time.time() - t0:.1f}초)")

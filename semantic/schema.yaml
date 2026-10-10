@@ -24,6 +24,9 @@ systems:
   ERP:
     name: 회계·인사
     role: 돈과 사람 — 계정과목, 전표, 직원, 근무조, 근태
+  ONTOLOGY:
+    name: 온톨로지 쓰기(write-back)
+    role: 사람이 온톨로지 위에서 직접 남긴 것 — 실행한 액션, 시뮬레이션 시나리오, 의사결정
 
 objects:
   # ───────────── POS ─────────────
@@ -227,6 +230,45 @@ objects:
       description: {type: string}
       source_doc_no: {type: string, nullable: true}    # 원천 문서번호(일마감 번호, PO 번호 등)
 
+  # ───────────── ONTOLOGY (Kinetic 액션·Dynamic 시나리오·결정) ─────────────
+  ActionLog:
+    label_ko: 액션기록
+    backing: {ONTOLOGY: writeback}
+    key: action_id
+    properties:
+      action_id: {type: string}
+      action_type: {type: enum, values: [가격변경, 품절처리, 판매재개, 발주]}
+      actor: {type: string}
+      executed_at: {type: datetime}
+      reason: {type: string}
+      params: {type: string}                           # 입력값(JSON)
+      status: {type: enum, values: [실행, 거부]}
+      message: {type: string}                          # 실행 결과 또는 거부 사유
+
+  Scenario:
+    label_ko: 시나리오
+    backing: {ONTOLOGY: writeback}
+    key: scenario_id
+    properties:
+      scenario_id: {type: string}
+      scenario_type: {type: enum, values: [원가충격, 업체변경]}
+      title: {type: string}
+      created_at: {type: datetime}
+      params: {type: string}                           # 가정(JSON)
+      result: {type: string}                           # 결과 요약(JSON)
+      impact: {type: float}                            # 기간 영향액(원, +면 비용 증가)
+
+  Decision:
+    label_ko: 의사결정
+    backing: {ONTOLOGY: writeback}
+    key: decision_id
+    properties:
+      decision_id: {type: string}
+      title: {type: string}
+      rationale: {type: string}
+      actor: {type: string}
+      decided_at: {type: datetime}
+
 links:
   # ── 시스템 내부 연결 ──
   - {name: MADE_VISIT, label_ko: 방문함, from: Customer, to: Visit, cardinality: 1:N, system: POS}
@@ -278,6 +320,11 @@ links:
   - {name: CONSUMED_BY, label_ko: 소진원인, from: StockMovement, to: CookTicket, cardinality: N:1, system: MES}
   - {name: RECEIVED_FOR, label_ko: 입고근거, from: StockMovement, to: PurchaseOrder, cardinality: N:1, system: SCM}
   - {name: POSTS_PAYROLL, label_ko: 인건비전표, from: JournalEntry, to: Attendance, cardinality: 1:N, system: ERP}
+  # ── 온톨로지 쓰기: 액션·결정이 무엇을 바꿨고 무엇에 근거했나 ──
+  - {name: CHANGED_MENU, label_ko: 메뉴변경, from: ActionLog, to: MenuItem, cardinality: N:1, system: ONTOLOGY}
+  - {name: CREATED_PO, label_ko: 발주생성, from: ActionLog, to: PurchaseOrder, cardinality: 1:1, system: ONTOLOGY}
+  - {name: BASED_ON, label_ko: 근거, from: Decision, to: Scenario, cardinality: N:M, system: ONTOLOGY}
+  - {name: EXECUTED, label_ko: 실행함, from: Decision, to: ActionLog, cardinality: 1:N, system: ONTOLOGY}
 
   # ── 시스템을 넘나드는 연결: 온톨로지가 존재하는 이유 ──
   # 원천 시스템끼리는 서로를 모른다. 각자 다른 코드·이름을 쓰는 것을 온톨로지가 이어 준다.

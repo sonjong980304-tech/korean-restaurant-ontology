@@ -15,9 +15,9 @@ def test_설계도에_모순이_없다():
     assert S.validate(SCHEMA) == []
 
 
-def test_네_시스템이_모두_객체를_뒷받침한다():
+def test_네_원천시스템과_온톨로지_쓰기가_모두_객체를_뒷받침한다():
     backed = {sys for obj in SCHEMA["objects"].values() for sys in obj["backing"]}
-    assert backed == {"POS", "MES", "SCM", "ERP"}
+    assert backed == {"POS", "MES", "SCM", "ERP", "ONTOLOGY"}
 
 
 def test_네_시스템이_교차연결로_하나로_이어진다():

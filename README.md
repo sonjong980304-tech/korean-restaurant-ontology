@@ -32,6 +32,10 @@
 | 코드값 | `M`/`F`, 출생연도, `FAMILY` | 남/여, 연령대, 가족으로 번역 |
 | 시각 | `2026-07-01 12:03:00` / `20260701T120300` / `2026/07/01` | 형식 통일 |
 
+**계보(lineage)**: 시스템을 넘나드는 선 7종(USES·TRIGGERED·COOKS·MOVES·POSTS_SALES·POSTS_PURCHASE·POSTS_COGS)에는
+`_rule`(schema.yaml의 join 규칙)과 `_join_key`(실제로 쓴 키값, 예: `CL-20260904`, `양파→VEG-ONION-1KG`)가 붙습니다.
+Neo4j 화면에서 선을 클릭하면 "이 선이 왜 생겼는지"를 바로 확인할 수 있습니다(`queries.cypher` ⑤).
+
 ## 실행
 
 ```bash

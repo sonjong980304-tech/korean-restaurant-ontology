@@ -88,6 +88,29 @@ def test_모든_전표는_차변과_대변이_같다(g):
     assert all(v == 0 for v in bal.values())
 
 
+CROSS = {l["name"]: l["join"] for l in SCHEMA["links"] if l.get("cross_system")}
+
+
+def test_시스템간_선에는_계보가_붙는다(g):
+    assert set(CROSS) == {"USES", "TRIGGERED", "COOKS", "MOVES", "POSTS_SALES", "POSTS_PURCHASE", "POSTS_COGS"}
+    for name, rule in CROSS.items():
+        rows = g.links[name]
+        assert rows, name
+        assert all(p["_rule"] == rule and p["_join_key"] for _, _, p in rows), name
+
+
+def test_계보_키값이_실제로_쓴_값이다(g):
+    assert all(p["_join_key"].startswith("CL-") for _, _, p in g.links["POSTS_SALES"])
+    assert all(p["_join_key"] == b for _, b, p in g.links["POSTS_PURCHASE"])
+    assert all(p["_join_key"] == a for a, _, p in g.links["TRIGGERED"])
+    onion = {p["_join_key"] for _, b, p in g.links["USES"] if b == "VEG-ONION-1KG"}
+    assert onion == {"양파→VEG-ONION-1KG"}
+
+
+def test_시스템_내부_선에는_계보가_없다(g):
+    assert all("_rule" not in p for _, _, p in g.links["SEATED_AT"])
+
+
 def test_매핑되지_않은_주방재료는_적재를_막는다(tmp_path, g):
     raw = tmp_path / "raw"
     shutil.copytree(P.RAW, raw, ignore=shutil.ignore_patterns("consumption.csv", "kds_ticket.csv"))

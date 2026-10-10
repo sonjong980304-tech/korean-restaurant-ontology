@@ -80,10 +80,15 @@ class Graph:
         self.links[name].append((a, b, props or {}))
 
 
-def build(raw=RAW, mapping=MAPPING):
+def build(raw=RAW, mapping=MAPPING, schema=None):
     g = Graph()
     R = lambda s, t: read(raw, s, t)  # noqa: E731
     errors = []
+    # 계보(lineage): 시스템을 넘나드는 선마다 '어떤 규칙(_rule)으로, 어떤 키값(_join_key)으로' 이었는지 남긴다
+    rules = {l["name"]: l["join"] for l in (schema or S.load())["links"] if l.get("cross_system")}
+
+    def lineage(name, key, props=None):
+        return {**(props or {}), "_rule": rules[name], "_join_key": key}
 
     # ═══ SCM: 재료·공급업체가 기준. 매핑표로 주방(MES) 이름과 잇는다 ═══
     with open(mapping, encoding="utf-8") as f:
@@ -133,14 +138,14 @@ def build(raw=RAW, mapping=MAPPING):
             "movement_id": r["receipt_no"], "moved_at": pos_dt(r["received_dt"]), "movement_type": "입고",
             "qty": float(r["qty"]) * f, "unit_cost": float(r["unit_cost"]) / f,
         }, "SCM")
-        g.link("MOVES", r["receipt_no"], r["item_code"])
+        g.link("MOVES", r["receipt_no"], r["item_code"], lineage("MOVES", r["item_code"]))
         g.link("RECEIVED_FOR", r["receipt_no"], r["po_no"])
     for r in R("scm", "stock_adjust"):
         g.node("StockMovement", r["adj_no"], {
             "movement_id": r["adj_no"], "moved_at": pos_dt(r["adj_dt"]), "movement_type": "실사조정",
             "qty": float(r["qty"]) * conv[r["item_code"]], "unit_cost": None,
         }, "SCM")
-        g.link("MOVES", r["adj_no"], r["item_code"])
+        g.link("MOVES", r["adj_no"], r["item_code"], lineage("MOVES", r["item_code"]))
 
     # ═══ POS ═══
     for r in R("pos", "member"):
@@ -204,14 +209,16 @@ def build(raw=RAW, mapping=MAPPING):
         item = material(r["material_name"], f"레시피 {r['recipe_code']}")
         menu = kitchen_to_menu.get(r["recipe_code"])
         if menu and item:
-            g.link("USES", menu, item, {"qty_per_serving": float(r["qty"])})
+            g.link("USES", menu, item, lineage("USES", f"{r['material_name']}→{item}",
+                                              {"qty_per_serving": float(r["qty"])}))
     for r in R("mes", "kds_ticket"):
         g.node("CookTicket", r["ticket_id"], {
             "ticket_id": r["ticket_id"], "station": STATION[r["station"]], "qty": int(r["qty"]),
             "started_at": mes_dt(r["start_ts"]), "completed_at": mes_dt(r["done_ts"]),
         }, "MES")
-        g.link("TRIGGERED", r["pos_order_no"], r["ticket_id"])
-        g.link("COOKS", r["ticket_id"], kitchen_to_menu.get(r["recipe_code"], r["recipe_code"]))
+        g.link("TRIGGERED", r["pos_order_no"], r["ticket_id"], lineage("TRIGGERED", r["pos_order_no"]))
+        g.link("COOKS", r["ticket_id"], kitchen_to_menu.get(r["recipe_code"], r["recipe_code"]),
+               lineage("COOKS", r["recipe_code"]))
     consumption_by_close = defaultdict(list)
     for r in R("mes", "consumption"):
         item = material(r["material_name"], f"소진 {r['cons_id']}")
@@ -220,7 +227,7 @@ def build(raw=RAW, mapping=MAPPING):
             "qty": -float(r["qty"]), "unit_cost": None,
         }, "MES")
         if item:
-            g.link("MOVES", r["cons_id"], item)
+            g.link("MOVES", r["cons_id"], item, lineage("MOVES", f"{r['material_name']}→{item}"))
         if r["ticket_id"]:
             g.link("CONSUMED_BY", r["cons_id"], r["ticket_id"])
         consumption_by_close[r["close_no"]].append(r["cons_id"])
@@ -256,12 +263,12 @@ def build(raw=RAW, mapping=MAPPING):
         kind = r["source_type"]
         if kind == "SALES":                                   # ERP → POS: 일마감 번호로 하루치 결제
             for pay in payments_by_close.get(src, []):
-                g.link("POSTS_SALES", r["je_no"], pay)
+                g.link("POSTS_SALES", r["je_no"], pay, lineage("POSTS_SALES", src))
         elif kind == "PURCHASE":                              # ERP → SCM: 발주번호
-            g.link("POSTS_PURCHASE", r["je_no"], src)
+            g.link("POSTS_PURCHASE", r["je_no"], src, lineage("POSTS_PURCHASE", src))
         elif kind == "COGS":                                  # ERP → MES: 원가 마감 번호로 하루치 소진
             for mv in consumption_by_close.get(src, []):
-                g.link("POSTS_COGS", r["je_no"], mv)
+                g.link("POSTS_COGS", r["je_no"], mv, lineage("POSTS_COGS", src))
         elif kind == "PAYROLL":                               # ERP 내부: 급여 기간의 근태
             start = payroll[src]
             for att in attendance_by_month[(start.year, start.month)]:

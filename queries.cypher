@@ -20,3 +20,9 @@ RETURN v.party_type AS 동행, count(*) AS 방문,
        round(100.0*sum(CASE WHEN v.seated_at IS NULL THEN 1 ELSE 0 END)/count(*),1) AS 이탈률,
        round(avg(duration.between(v.seated_at, v.left_at).minutes),0) AS 체류분
 ORDER BY 이탈률 DESC;
+
+// ⑤ 선의 근거(계보) 보기 — 시스템을 넘나드는 선이 어떤 규칙과 키값으로 만들어졌나
+MATCH (o:Order)-[t:TRIGGERED]->(k:CookTicket)-[c:COOKS]->(m:MenuItem)-[u:USES]->(i:Ingredient)
+RETURN o.order_id AS 주문, k.ticket_id AS 조리지시, m.name AS 메뉴, i.name AS 재료,
+       t._join_key AS 주문연결키, t._rule AS 주문연결규칙, c._join_key AS 레시피코드, u._join_key AS 재료매핑
+LIMIT 5;

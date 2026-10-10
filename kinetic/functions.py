@@ -23,15 +23,26 @@ def _period(start: date, end: date):
 SLOT = "CASE WHEN v.arrived_at.hour < 16 THEN '점심' ELSE '저녁' END"
 
 
+LATEST_PRICE = """
+    CALL (i) {
+      MATCH (po:PurchaseOrder)-[x:ORDERS_ITEM]->(i) WHERE po.ordered_at < $until
+      RETURN x.unit_price AS unit_price ORDER BY po.ordered_at DESC LIMIT 1
+    }"""
+
+
+def latest_prices(driver, as_of: date):
+    """재료별 기준일까지 가장 최근 매입단가(원/기준단위)."""
+    records = driver.execute_query(
+        "MATCH (i:Ingredient)" + LATEST_PRICE + " RETURN i.ingredient_id AS iid, unit_price",
+        until=_day_end(as_of)).records
+    return {r["iid"]: r["unit_price"] for r in records}
+
+
 def menu_costs(driver, as_of: date):
     """메뉴별 원가(레시피 사용량 × 기준일까지의 최근 매입단가), 마진, 원가율."""
     records = driver.execute_query(
         """
-        MATCH (m:MenuItem)-[u:USES]->(i:Ingredient)
-        CALL (i) {
-          MATCH (po:PurchaseOrder)-[x:ORDERS_ITEM]->(i) WHERE po.ordered_at < $until
-          RETURN x.unit_price AS unit_price ORDER BY po.ordered_at DESC LIMIT 1
-        }
+        MATCH (m:MenuItem)-[u:USES]->(i:Ingredient)""" + LATEST_PRICE + """
         WITH m, sum(u.qty_per_serving * unit_price) AS cost
         RETURN m.menu_id AS menu_id, m.name AS menu, m.price AS price, cost,
                m.price - cost AS margin, cost / m.price AS cost_ratio
@@ -167,7 +178,8 @@ def stock_status(driver, as_of: date, window_days: int = 7):
         OPTIONAL MATCH (u:StockMovement)-[:MOVES]->(i)
         WHERE u.movement_type IN ['소진', '폐기'] AND $window_start <= u.moved_at < $until
         WITH i, stock, -sum(coalesce(u.qty, 0)) / $days AS daily_usage
-        RETURN i.name AS ingredient, i.unit AS unit, stock, daily_usage, i.safety_stock AS safety_stock,
+        RETURN i.ingredient_id AS ingredient_id, i.name AS ingredient, i.unit AS unit, stock, daily_usage,
+               i.safety_stock AS safety_stock,
                CASE WHEN daily_usage > 0 THEN stock / daily_usage END AS days_left,
                stock < i.safety_stock AS below_safety
         ORDER BY days_left

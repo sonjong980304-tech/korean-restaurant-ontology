@@ -1,0 +1,60 @@
+# 가게 프로필 — 2026-10-11 확정한 규모 숫자.
+# 3단계 데이터 생성기는 이 숫자를 그대로 따르고, 테스트로 일치 여부를 검증한다.
+
+restaurant:
+  name: 한솥밥상
+  concept: 오피스·주거 혼합 상권의 72석 한식당
+  hours:
+    lunch: ["11:00", "15:00"]
+    dinner: ["17:00", "22:00"]
+  closed_weekday: 월
+  period: ["2026-07-01", "2026-09-30"]
+  daily_visits: [120, 180]      # 하루 방문 팀 수 범위
+  members: 1500                  # 전화번호 적립 회원 수
+  non_member_ratio: 0.4          # 비회원 방문 비율(성별·연령 '모름')
+
+zones:
+  - {id: Z-HALL, name: 홀, seating: 입식}
+  - {id: Z-ROOM, name: 좌식룸, seating: 좌식}
+
+tables:                          # 18개 / 72석
+  - {zone: Z-HALL, capacity: 2, count: 6}
+  - {zone: Z-HALL, capacity: 4, count: 8}
+  - {zone: Z-ROOM, capacity: 6, count: 2}
+  - {zone: Z-ROOM, capacity: 8, count: 2}
+
+menu_categories:                 # 7개 카테고리 / 24개 메뉴
+  찌개·탕: [김치찌개, 된장찌개, 순두부찌개, 부대찌개, 갈비탕]
+  구이·볶음: [제육볶음, 불고기, 고등어구이, LA갈비]
+  밥: [비빔밥, 돌솥비빔밥, 제육덮밥]
+  면: [물냉면, 비빔국수]
+  안주: [보쌈, 해물파전, 김치전, 계란말이]
+  점심정식: [김치찌개정식, 제육정식]
+  주류·음료: [소주, 맥주, 막걸리, 음료]
+
+ingredient_count: 40             # 재료 약 40개(여러 메뉴에 겹쳐 쓰이게)
+
+suppliers:                       # 6곳
+  - {id: SUP-VEG, name: 푸른농산, category: 채소}
+  - {id: SUP-MEAT-A, name: 한우리축산, category: 육류}
+  - {id: SUP-MEAT-B, name: 대성미트, category: 육류, note: 대체 업체(업체 변경 시뮬레이션용)}
+  - {id: SUP-SEA, name: 동해수산, category: 수산}
+  - {id: SUP-DRY, name: 진미식자재, category: 양념·공산품}
+  - {id: SUP-LIQ, name: 서울주류, category: 주류}
+
+employees:                       # 10명
+  - {role: 사장, employment: 정규, count: 1}
+  - {role: 주방장, employment: 정규, count: 1}
+  - {role: 주방보조, employment: 정규, count: 2}
+  - {role: 홀매니저, employment: 정규, count: 2}
+  - {role: 홀아르바이트, employment: 아르바이트, count: 4}
+
+shifts:                          # 3개 근무조
+  - {id: SH-OPEN, name: 오픈조, blocks: [["10:00", "15:30"]]}
+  - {id: SH-CLOSE, name: 마감조, blocks: [["16:00", "22:30"]]}
+  - {id: SH-PEAK, name: 피크보강조, blocks: [["11:30", "13:30"], ["18:00", "21:00"]]}
+
+customer_axes:                   # 고객은 3개 축으로 나눈다(한 칸에 섞지 않음)
+  who: {on: Customer, fields: [gender, age_group]}               # 누구인가 — 입력된 사실
+  with_whom: {on: Visit, fields: [party_type, party_size, has_child]}  # 누구와 왔나 — 방문마다 다름
+  how_often: {on: kinetic, note: 신규/재방문/단골/VIP/이탈위험은 방문 기록에서 계산(4단계)}

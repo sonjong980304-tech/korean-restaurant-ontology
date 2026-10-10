@@ -1,0 +1,19 @@
+# 한식당 온톨로지 실습 전용 Neo4j (기존 macro-neo4j와 포트를 겹치지 않게 7475/7688 사용)
+services:
+  neo4j:
+    image: neo4j:5-community
+    container_name: restaurant-neo4j
+    ports:
+      - "127.0.0.1:7475:7474"   # 브라우저 화면
+      - "127.0.0.1:7688:7687"   # 파이썬 접속(bolt)
+    environment:
+      NEO4J_AUTH: neo4j/${NEO4J_PASSWORD}
+      NEO4J_PLUGINS: '["apoc"]'
+      NEO4J_server_memory_heap_initial__size: 512M
+      NEO4J_server_memory_heap_max__size: 768M
+      NEO4J_server_memory_pagecache_size: 256M
+      NEO4J_server_bolt_advertised__address: localhost:7688   # 브라우저 화면이 7687(다른 Neo4j)이 아닌 7688로 접속하도록
+    volumes:
+      - restaurant_neo4j_data:/data
+volumes:
+  restaurant_neo4j_data:

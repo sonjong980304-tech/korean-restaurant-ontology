@@ -1,0 +1,340 @@
+# 한식당 온톨로지 — Semantic 레이어 설계도 (유일한 원본)
+#
+# 팔란티어 방식: 원천 시스템(POS·MES·SCM·ERP)은 그대로 두고,
+# 온톨로지가 그 위에서 객체를 정의하고 시스템 사이를 '연결'한다.
+#   - 객체(object)마다 어느 시스템의 어느 표가 뒷받침하는지(backing) 적는다.
+#   - 한 객체를 두 시스템이 나눠 뒷받침할 수도 있다(예: 메뉴 = POS 가격 + MES 레시피).
+#   - 시스템을 넘나드는 연결(cross_system: true)은 어떤 키로 잇는지(join) 적는다.
+#
+# 속성 타입: string | int | float | bool | date | datetime | time | enum(values 필수)
+# Kinetic(계산·액션)과 Dynamic(예측·시나리오)은 이 파일에 두지 않는다.
+
+version: 1
+
+systems:
+  POS:
+    name: 포스·고객관리
+    role: 손님이 들어와서 나갈 때까지 — 대기, 착석, 주문, 결제, 회원
+  MES:
+    name: 주방 생산관리(KDS)
+    role: 음식을 만드는 과정 — 레시피(BOM), 조리 지시, 재료 소진, 폐기
+  SCM:
+    name: 구매·재고·공급망
+    role: 재료가 들어오는 과정 — 재료 마스터, 공급업체, 발주, 입고, 재고 실사
+  ERP:
+    name: 회계·인사
+    role: 돈과 사람 — 계정과목, 전표, 직원, 근무조, 근태
+
+objects:
+  # ───────────── POS ─────────────
+  Customer:
+    label_ko: 고객
+    backing: {POS: member}
+    key: customer_id
+    properties:
+      customer_id: {type: string}
+      gender: {type: enum, values: [남, 여], nullable: true}
+      age_group: {type: enum, values: [20대, 30대, 40대, 50대, 60대+], nullable: true}
+      joined_at: {type: date}
+
+  Visit:
+    label_ko: 방문
+    backing: {POS: visit}
+    key: visit_id
+    properties:
+      visit_id: {type: string}
+      arrived_at: {type: datetime}
+      seated_at: {type: datetime, nullable: true}     # 대기 중 이탈하면 없음
+      left_at: {type: datetime, nullable: true}
+      party_type: {type: enum, values: [혼밥, 연인, 친구, 가족, 회식, 비즈니스]}
+      party_size: {type: int}
+      has_child: {type: bool}
+      channel: {type: enum, values: [워크인, 예약]}
+
+  WaitingRecord:
+    label_ko: 대기기록
+    backing: {POS: waiting}
+    key: waiting_id
+    properties:
+      waiting_id: {type: string}
+      queued_at: {type: datetime}
+      called_at: {type: datetime, nullable: true}
+      quoted_wait_min: {type: int}                     # 안내한 예상 대기시간
+      outcome: {type: enum, values: [착석, 이탈]}
+
+  Zone:
+    label_ko: 구역
+    backing: {POS: zone}
+    key: zone_id
+    properties:
+      zone_id: {type: string}
+      name: {type: string}
+      seating: {type: enum, values: [입식, 좌식]}
+
+  DiningTable:
+    label_ko: 테이블
+    backing: {POS: table}
+    key: table_id
+    properties:
+      table_id: {type: string}
+      capacity: {type: int}
+
+  Order:
+    label_ko: 주문
+    backing: {POS: order}
+    key: order_id
+    properties:
+      order_id: {type: string}
+      ordered_at: {type: datetime}
+
+  Payment:
+    label_ko: 결제
+    backing: {POS: payment}
+    key: payment_id
+    properties:
+      payment_id: {type: string}
+      paid_at: {type: datetime}
+      amount: {type: int}
+      method: {type: enum, values: [카드, 현금, 간편결제]}
+
+  MenuCategory:
+    label_ko: 메뉴카테고리
+    backing: {POS: menu_category}
+    key: category_id
+    properties:
+      category_id: {type: string}
+      name: {type: string}
+
+  # 한 객체를 두 시스템이 나눠 뒷받침하는 예 — 이름·가격은 POS, 레시피 코드는 MES
+  MenuItem:
+    label_ko: 메뉴
+    backing: {POS: menu, MES: recipe}
+    key: menu_id
+    properties:
+      menu_id: {type: string}
+      name: {type: string, source: POS}
+      price: {type: int, source: POS}
+      pos_menu_code: {type: string, source: POS}       # 예: P-101
+      mes_recipe_code: {type: string, source: MES}     # 예: R-KMC01
+      is_available: {type: bool, source: POS}          # 품절 여부(Kinetic 액션이 바꿈)
+
+  # ───────────── MES ─────────────
+  CookTicket:
+    label_ko: 조리지시
+    backing: {MES: kds_ticket}
+    key: ticket_id
+    properties:
+      ticket_id: {type: string}
+      station: {type: enum, values: [찌개, 구이, 찬·면, 음료]}
+      qty: {type: int}
+      started_at: {type: datetime}
+      completed_at: {type: datetime}
+
+  StockMovement:
+    label_ko: 재고이동
+    backing: {MES: consumption, SCM: receipt}         # 소진·폐기는 MES, 입고·실사는 SCM
+    key: movement_id
+    properties:
+      movement_id: {type: string}
+      moved_at: {type: datetime}
+      movement_type: {type: enum, values: [입고, 소진, 폐기, 실사조정]}
+      qty: {type: float}                               # 재료 기본 단위 기준(+입고, -소진)
+      unit_cost: {type: float, nullable: true}
+
+  # ───────────── SCM ─────────────
+  Ingredient:
+    label_ko: 재료
+    backing: {SCM: item_master}
+    key: ingredient_id
+    properties:
+      ingredient_id: {type: string}
+      name: {type: string}
+      scm_item_code: {type: string}                    # 예: VEG-ONION-1KG
+      mes_material_name: {type: string}                # 주방에서 부르는 이름(예: 양파) — 매핑표에서 옴
+      unit: {type: enum, values: [g, ml, ea]}           # 온톨로지 기준단위(SCM kg·L을 환산)
+      storage: {type: enum, values: [냉장, 냉동, 상온]}
+      shelf_life_days: {type: int}
+      safety_stock: {type: float}
+
+  Supplier:
+    label_ko: 공급업체
+    backing: {SCM: vendor}
+    key: supplier_id
+    properties:
+      supplier_id: {type: string}
+      name: {type: string}
+      category: {type: string}
+      lead_time_days: {type: int}
+      payment_terms_days: {type: int}
+
+  PurchaseOrder:
+    label_ko: 발주
+    backing: {SCM: purchase_order}
+    key: po_id
+    properties:
+      po_id: {type: string}
+      ordered_at: {type: datetime}
+      expected_at: {type: date}
+      status: {type: enum, values: [요청, 확정, 입고완료, 취소]}
+
+  # ───────────── ERP ─────────────
+  Employee:
+    label_ko: 직원
+    backing: {ERP: hr_employee}
+    key: employee_id
+    properties:
+      employee_id: {type: string}
+      name: {type: string}
+      role: {type: enum, values: [사장, 주방장, 주방보조, 홀매니저, 홀아르바이트]}
+      employment: {type: enum, values: [정규, 아르바이트]}
+      hourly_wage: {type: int, nullable: true}
+      monthly_salary: {type: int, nullable: true}
+
+  Shift:
+    label_ko: 근무조
+    backing: {ERP: shift_master}
+    key: shift_id
+    properties:
+      shift_id: {type: string}
+      name: {type: string}
+
+  Attendance:
+    label_ko: 근태기록
+    backing: {ERP: attendance}
+    key: attendance_id
+    properties:
+      attendance_id: {type: string}
+      work_date: {type: date}
+      clock_in: {type: datetime}
+      clock_out: {type: datetime}
+
+  Account:
+    label_ko: 계정과목
+    backing: {ERP: chart_of_accounts}
+    key: account_code
+    properties:
+      account_code: {type: string}
+      name: {type: string}
+      account_type: {type: enum, values: [자산, 부채, 자본, 수익, 비용]}
+
+  JournalEntry:
+    label_ko: 전표
+    backing: {ERP: journal}
+    key: je_id
+    properties:
+      je_id: {type: string}
+      posted_on: {type: date}
+      description: {type: string}
+      source_doc_no: {type: string, nullable: true}    # 원천 문서번호(일마감 번호, PO 번호 등)
+
+links:
+  # ── 시스템 내부 연결 ──
+  - {name: MADE_VISIT, label_ko: 방문함, from: Customer, to: Visit, cardinality: 1:N, system: POS}
+  - {name: WAITED, label_ko: 대기함, from: Visit, to: WaitingRecord, cardinality: 1:1, system: POS}
+  - {name: SEATED_AT, label_ko: 착석함, from: Visit, to: DiningTable, cardinality: N:1, system: POS}
+  - {name: IN_ZONE, label_ko: 속함, from: DiningTable, to: Zone, cardinality: N:1, system: POS}
+  - {name: PLACED, label_ko: 주문함, from: Visit, to: Order, cardinality: 1:N, system: POS}
+  - name: CONTAINS
+    label_ko: 포함함
+    from: Order
+    to: MenuItem
+    cardinality: N:M
+    system: POS
+    properties: {qty: {type: int}, unit_price: {type: int}}
+  - {name: PAID_BY, label_ko: 결제됨, from: Visit, to: Payment, cardinality: 1:N, system: POS}
+  - {name: IN_CATEGORY, label_ko: 속함, from: MenuItem, to: MenuCategory, cardinality: N:1, system: POS}
+  - name: SUPPLIES
+    label_ko: 공급함
+    from: Supplier
+    to: Ingredient
+    cardinality: N:M
+    system: SCM
+    properties: {unit_price: {type: float}, min_order_qty: {type: float}}
+  - name: ORDERS_ITEM
+    label_ko: 발주품목
+    from: PurchaseOrder
+    to: Ingredient
+    cardinality: N:M
+    system: SCM
+    properties: {qty: {type: float}, unit_price: {type: float}}
+  - {name: ISSUED_TO, label_ko: 발주처, from: PurchaseOrder, to: Supplier, cardinality: N:1, system: SCM}
+  - {name: WORKED, label_ko: 근무함, from: Employee, to: Attendance, cardinality: 1:N, system: ERP}
+  - {name: OF_SHIFT, label_ko: 근무조, from: Attendance, to: Shift, cardinality: N:1, system: ERP}
+  - name: DEBITS
+    label_ko: 차변
+    from: JournalEntry
+    to: Account
+    cardinality: N:M
+    system: ERP
+    properties: {amount: {type: int}}
+  - name: CREDITS
+    label_ko: 대변
+    from: JournalEntry
+    to: Account
+    cardinality: N:M
+    system: ERP
+    properties: {amount: {type: int}}
+
+  - {name: CONSUMED_BY, label_ko: 소진원인, from: StockMovement, to: CookTicket, cardinality: N:1, system: MES}
+  - {name: RECEIVED_FOR, label_ko: 입고근거, from: StockMovement, to: PurchaseOrder, cardinality: N:1, system: SCM}
+  - {name: POSTS_PAYROLL, label_ko: 인건비전표, from: JournalEntry, to: Attendance, cardinality: 1:N, system: ERP}
+
+  # ── 시스템을 넘나드는 연결: 온톨로지가 존재하는 이유 ──
+  # 원천 시스템끼리는 서로를 모른다. 각자 다른 코드·이름을 쓰는 것을 온톨로지가 이어 준다.
+  - name: USES
+    label_ko: 사용함(레시피)
+    from: MenuItem
+    to: Ingredient
+    cardinality: N:M
+    cross_system: true
+    systems: [MES, SCM]
+    join: MES.recipe_line.material_name → mappings/material_map.csv → SCM.item_master.item_code (단위 kg→g 환산)
+    properties: {qty_per_serving: {type: float}}
+  - name: TRIGGERED
+    label_ko: 조리지시됨
+    from: Order
+    to: CookTicket
+    cardinality: 1:N
+    cross_system: true
+    systems: [POS, MES]
+    join: MES.kds_ticket.pos_order_no = POS.order.order_no
+  - name: COOKS
+    label_ko: 조리함
+    from: CookTicket
+    to: MenuItem
+    cardinality: N:1
+    cross_system: true
+    systems: [MES, POS]
+    join: MES.kds_ticket.recipe_code = POS.menu.mes_recipe_code
+  - name: MOVES
+    label_ko: 재고변동
+    from: StockMovement
+    to: Ingredient
+    cardinality: N:1
+    cross_system: true
+    systems: [MES, SCM]
+    join: MES.consumption.material_name → mappings/material_map.csv → SCM.item_master.item_code (입고·실사는 item_code 직접)
+  - name: POSTS_SALES
+    label_ko: 매출전표
+    from: JournalEntry
+    to: Payment
+    cardinality: 1:N
+    cross_system: true
+    systems: [ERP, POS]
+    join: ERP.journal.source_doc_no = POS.daily_close.close_no (일마감 번호로 하루치 결제를 묶음)
+  - name: POSTS_PURCHASE
+    label_ko: 매입전표
+    from: JournalEntry
+    to: PurchaseOrder
+    cardinality: 1:1
+    cross_system: true
+    systems: [ERP, SCM]
+    join: ERP.journal.source_doc_no = SCM.purchase_order.po_no
+  - name: POSTS_COGS
+    label_ko: 원가전표
+    from: JournalEntry
+    to: StockMovement
+    cardinality: 1:N
+    cross_system: true
+    systems: [ERP, MES]
+    join: ERP.journal.source_doc_no = MES.daily_consumption.close_no

@@ -1,0 +1,117 @@
+# 가게 기준정보 — 원천 시스템(POS·MES·SCM·ERP)이 각자 들고 있는 마스터 데이터의 '진짜 값'.
+# 생성기(generate.py)는 이 값을 시스템마다 다른 코드·이름·단위로 흩어서 내보낸다.
+
+# 재료 40개. mes = 주방(MES)에서 부르는 이름, scm = 구매(SCM) 품목코드·품명·구매단위
+# price = SCM 구매단위당 단가(원). kg/L 단위는 MES에서 g/ml로 1000배 환산된다.
+ingredients:
+  # 채소 (SUP-VEG) 11
+  - {mes: 양파, scm: VEG-ONION-1KG, scm_name: 양파(국산) 1kg망, uom: kg, price: 3000, storage: 냉장, shelf: 14, supplier: SUP-VEG}
+  - {mes: 대파, scm: VEG-SCALLION, scm_name: 대파 1단(1kg), uom: kg, price: 4000, storage: 냉장, shelf: 7, supplier: SUP-VEG}
+  - {mes: 마늘, scm: VEG-GARLIC-PEEL, scm_name: 깐마늘 1kg, uom: kg, price: 12000, storage: 냉장, shelf: 14, supplier: SUP-VEG}
+  - {mes: 애호박, scm: VEG-ZUCCHINI, scm_name: 애호박(특), uom: kg, price: 4000, storage: 냉장, shelf: 7, supplier: SUP-VEG}
+  - {mes: 감자, scm: VEG-POTATO-5KG, scm_name: 감자 5kg박스, uom: kg, price: 3000, storage: 상온, shelf: 21, supplier: SUP-VEG}
+  - {mes: 무, scm: VEG-RADISH, scm_name: 무(제주), uom: kg, price: 1500, storage: 냉장, shelf: 14, supplier: SUP-VEG}
+  - {mes: 배추, scm: VEG-NAPA, scm_name: 알배추, uom: kg, price: 2500, storage: 냉장, shelf: 7, supplier: SUP-VEG}
+  - {mes: 상추, scm: VEG-LETTUCE, scm_name: 적상추 4kg, uom: kg, price: 10000, storage: 냉장, shelf: 4, supplier: SUP-VEG}
+  - {mes: 청양고추, scm: VEG-CHILI-CY, scm_name: 청양고추 1kg, uom: kg, price: 10000, storage: 냉장, shelf: 10, supplier: SUP-VEG}
+  - {mes: 콩나물, scm: VEG-SPROUT, scm_name: 콩나물 4kg, uom: kg, price: 3000, storage: 냉장, shelf: 4, supplier: SUP-VEG}
+  - {mes: 표고, scm: VEG-SHIITAKE, scm_name: 생표고버섯 1kg, uom: kg, price: 15000, storage: 냉장, shelf: 7, supplier: SUP-VEG}
+  # 육류 (SUP-MEAT-A 주거래, SUP-MEAT-B 대체) 6
+  - {mes: 돼지앞다리, scm: MT-PORK-SHLD, scm_name: 돈앞다리 슬라이스, uom: kg, price: 12000, storage: 냉장, shelf: 5, supplier: SUP-MEAT-A}
+  - {mes: 돼지목살, scm: MT-PORK-NECK, scm_name: 돈목살 원육, uom: kg, price: 18000, storage: 냉장, shelf: 5, supplier: SUP-MEAT-A}
+  - {mes: 돼지삼겹, scm: MT-PORK-BELLY, scm_name: 돈삼겹 통삼겹(수육용), uom: kg, price: 20000, storage: 냉장, shelf: 5, supplier: SUP-MEAT-A}
+  - {mes: 소불고기, scm: MT-BEEF-BULGO, scm_name: 우불고기용 슬라이스, uom: kg, price: 30000, storage: 냉장, shelf: 4, supplier: SUP-MEAT-A}
+  - {mes: LA갈비, scm: MT-BEEF-LARIB, scm_name: LA갈비(미국산), uom: kg, price: 35000, storage: 냉동, shelf: 60, supplier: SUP-MEAT-A}
+  - {mes: 소갈비, scm: MT-BEEF-SRIB, scm_name: 찜갈비(탕용), uom: kg, price: 28000, storage: 냉동, shelf: 60, supplier: SUP-MEAT-A}
+  # 수산 (SUP-SEA) 4
+  - {mes: 고등어, scm: SF-MACKEREL, scm_name: 손질고등어(1마리), uom: ea, price: 3000, storage: 냉동, shelf: 90, supplier: SUP-SEA}
+  - {mes: 오징어, scm: SF-SQUID, scm_name: 손질오징어 1kg, uom: kg, price: 15000, storage: 냉동, shelf: 90, supplier: SUP-SEA}
+  - {mes: 바지락, scm: SF-CLAM, scm_name: 해감바지락 1kg, uom: kg, price: 10000, storage: 냉장, shelf: 3, supplier: SUP-SEA}
+  - {mes: 새우, scm: SF-SHRIMP, scm_name: 칵테일새우 1kg, uom: kg, price: 20000, storage: 냉동, shelf: 90, supplier: SUP-SEA}
+  # 양념·공산품 (SUP-DRY) 15
+  - {mes: 쌀, scm: DRY-RICE-20KG, scm_name: 쌀 20kg(국산), uom: kg, price: 3000, storage: 상온, shelf: 180, supplier: SUP-DRY}
+  - {mes: 고춧가루, scm: DRY-CHILIPWD, scm_name: 고춧가루(국산) 1kg, uom: kg, price: 25000, storage: 상온, shelf: 180, supplier: SUP-DRY}
+  - {mes: 고추장, scm: DRY-GOCHUJANG, scm_name: 고추장 14kg, uom: kg, price: 8000, storage: 상온, shelf: 365, supplier: SUP-DRY}
+  - {mes: 된장, scm: DRY-DOENJANG, scm_name: 재래된장 14kg, uom: kg, price: 7000, storage: 상온, shelf: 365, supplier: SUP-DRY}
+  - {mes: 간장, scm: DRY-SOY-13L, scm_name: 진간장 13L, uom: L, price: 4000, storage: 상온, shelf: 365, supplier: SUP-DRY}
+  - {mes: 참기름, scm: DRY-SESAME-OIL, scm_name: 참기름 1.8L, uom: L, price: 20000, storage: 상온, shelf: 365, supplier: SUP-DRY}
+  - {mes: 식용유, scm: DRY-OIL-18L, scm_name: 대두유 18L, uom: L, price: 3000, storage: 상온, shelf: 365, supplier: SUP-DRY}
+  - {mes: 두부, scm: DRY-TOFU, scm_name: 판두부 3kg, uom: kg, price: 4000, storage: 냉장, shelf: 5, supplier: SUP-DRY}
+  - {mes: 순두부, scm: DRY-SOFTTOFU, scm_name: 순두부 400g, uom: kg, price: 5000, storage: 냉장, shelf: 7, supplier: SUP-DRY}
+  - {mes: 김치, scm: DRY-KIMCHI-10KG, scm_name: 포기김치 10kg, uom: kg, price: 5000, storage: 냉장, shelf: 30, supplier: SUP-DRY}
+  - {mes: 부침가루, scm: DRY-FLOUR-MIX, scm_name: 부침가루 10kg, uom: kg, price: 3000, storage: 상온, shelf: 365, supplier: SUP-DRY}
+  - {mes: 냉면사리, scm: DRY-NAENGMYEON, scm_name: 냉면사리 2kg, uom: kg, price: 8000, storage: 냉동, shelf: 180, supplier: SUP-DRY}
+  - {mes: 소면, scm: DRY-SOMEN, scm_name: 소면 3kg, uom: kg, price: 4000, storage: 상온, shelf: 365, supplier: SUP-DRY}
+  - {mes: 햄, scm: DRY-HAM, scm_name: 부대찌개용 햄 1kg, uom: kg, price: 15000, storage: 냉장, shelf: 30, supplier: SUP-DRY}
+  - {mes: 계란, scm: DRY-EGG-30, scm_name: 계란 특란 30구, uom: ea, price: 250, storage: 냉장, shelf: 21, supplier: SUP-DRY}
+  # 주류·음료 (SUP-LIQ) 4
+  - {mes: 소주, scm: LQ-SOJU, scm_name: 소주 360ml, uom: ea, price: 1300, storage: 상온, shelf: 365, supplier: SUP-LIQ}
+  - {mes: 맥주, scm: LQ-BEER, scm_name: 맥주 500ml, uom: ea, price: 1800, storage: 상온, shelf: 365, supplier: SUP-LIQ}
+  - {mes: 막걸리, scm: LQ-MAKGEOLLI, scm_name: 생막걸리 750ml, uom: ea, price: 1500, storage: 냉장, shelf: 10, supplier: SUP-LIQ}
+  - {mes: 음료, scm: LQ-SODA, scm_name: 탄산음료 355ml, uom: ea, price: 800, storage: 상온, shelf: 365, supplier: SUP-LIQ}
+
+suppliers:   # profile.yaml의 6곳 + SCM 거래조건
+  SUP-VEG: {lead: 1, terms: 15}
+  SUP-MEAT-A: {lead: 1, terms: 30}
+  SUP-MEAT-B: {lead: 2, terms: 30, price_factor: 0.92}   # 육류 전 품목 8% 저렴, 대신 리드타임 2일
+  SUP-SEA: {lead: 2, terms: 30}
+  SUP-DRY: {lead: 2, terms: 30}
+  SUP-LIQ: {lead: 1, terms: 7}
+
+# 메뉴 24개. pos = POS 메뉴코드, kitchen = POS가 주방으로 보내는 MES 레시피 코드
+# recipe = 1인분 사용량(MES 단위: g / ml / ea). 공기밥이 딸린 메뉴는 쌀 210g 포함
+menus:
+  - {pos: P-101, name: 김치찌개, cat: 찌개·탕, price: 8000, kitchen: R-JJ-KIMCHI, station: 찌개, recipe: {김치: 150, 돼지앞다리: 80, 두부: 60, 대파: 15, 양파: 30, 고춧가루: 5, 쌀: 210}}
+  - {pos: P-102, name: 된장찌개, cat: 찌개·탕, price: 8000, kitchen: R-JJ-DOENJANG, station: 찌개, recipe: {된장: 40, 두부: 60, 애호박: 40, 감자: 40, 양파: 30, 청양고추: 5, 바지락: 40, 쌀: 210}}
+  - {pos: P-103, name: 순두부찌개, cat: 찌개·탕, price: 9000, kitchen: R-JJ-SUNDUBU, station: 찌개, recipe: {순두부: 200, 바지락: 40, 계란: 1, 고춧가루: 8, 대파: 15, 양파: 20, 쌀: 210}}
+  - {pos: P-104, name: 부대찌개, cat: 찌개·탕, price: 11000, kitchen: R-JJ-BUDAE, station: 찌개, recipe: {햄: 100, 김치: 80, 두부: 40, 대파: 20, 양파: 30, 고추장: 15, 쌀: 210}}
+  - {pos: P-105, name: 갈비탕, cat: 찌개·탕, price: 14000, kitchen: R-TANG-GALBI, station: 찌개, recipe: {소갈비: 250, 무: 80, 대파: 20, 마늘: 10, 간장: 10, 쌀: 210}}
+  - {pos: P-201, name: 제육볶음, cat: 구이·볶음, price: 12000, kitchen: R-GU-JEYUK, station: 구이, recipe: {돼지앞다리: 200, 양파: 60, 대파: 20, 고추장: 30, 고춧가루: 5, 마늘: 10, 식용유: 10, 상추: 40, 쌀: 210}}
+  - {pos: P-202, name: 불고기, cat: 구이·볶음, price: 14000, kitchen: R-GU-BULGOGI, station: 구이, recipe: {소불고기: 180, 양파: 60, 대파: 20, 표고: 30, 간장: 25, 마늘: 10, 참기름: 5, 쌀: 210}}
+  - {pos: P-203, name: 고등어구이, cat: 구이·볶음, price: 11000, kitchen: R-GU-MACKEREL, station: 구이, recipe: {고등어: 1, 식용유: 15, 무: 30, 쌀: 210}}
+  - {pos: P-204, name: LA갈비, cat: 구이·볶음, price: 25000, kitchen: R-GU-LAGALBI, station: 구이, recipe: {LA갈비: 300, 간장: 30, 마늘: 15, 양파: 40, 상추: 50, 쌀: 210}}
+  - {pos: P-301, name: 비빔밥, cat: 밥, price: 9000, kitchen: R-BAP-BIBIM, station: 찬·면, recipe: {쌀: 210, 콩나물: 40, 애호박: 30, 표고: 20, 계란: 1, 고추장: 20, 참기름: 5}}
+  - {pos: P-302, name: 돌솥비빔밥, cat: 밥, price: 10000, kitchen: R-BAP-DOLSOT, station: 찬·면, recipe: {쌀: 210, 콩나물: 40, 애호박: 30, 표고: 20, 계란: 1, 고추장: 20, 참기름: 8, 소불고기: 30}}
+  - {pos: P-303, name: 제육덮밥, cat: 밥, price: 9500, kitchen: R-BAP-JEYUK, station: 구이, recipe: {쌀: 230, 돼지앞다리: 120, 양파: 40, 고추장: 20, 대파: 10, 식용유: 8}}
+  - {pos: P-401, name: 물냉면, cat: 면, price: 9000, kitchen: R-MYEON-MUL, station: 찬·면, recipe: {냉면사리: 160, 무: 30, 계란: 0.5, 간장: 10}}
+  - {pos: P-402, name: 비빔국수, cat: 면, price: 8000, kitchen: R-MYEON-BIBIM, station: 찬·면, recipe: {소면: 150, 고추장: 30, 무: 20, 계란: 0.5, 참기름: 5}}
+  - {pos: P-501, name: 보쌈, cat: 안주, price: 30000, kitchen: R-AN-BOSSAM, station: 구이, recipe: {돼지삼겹: 500, 배추: 150, 무: 100, 고춧가루: 10, 마늘: 20, 상추: 60}}
+  - {pos: P-502, name: 해물파전, cat: 안주, price: 15000, kitchen: R-AN-HAEMUL, station: 구이, recipe: {부침가루: 150, 오징어: 60, 새우: 50, 대파: 80, 계란: 1, 식용유: 40}}
+  - {pos: P-503, name: 김치전, cat: 안주, price: 12000, kitchen: R-AN-KIMCHIJEON, station: 구이, recipe: {부침가루: 120, 김치: 120, 식용유: 35, 청양고추: 5}}
+  - {pos: P-504, name: 계란말이, cat: 안주, price: 9000, kitchen: R-AN-GYERAN, station: 구이, recipe: {계란: 4, 대파: 15, 양파: 20, 식용유: 10}}
+  - {pos: P-601, name: 김치찌개정식, cat: 점심정식, price: 10000, kitchen: R-SET-KIMCHI, station: 찌개, lunch_only: true, recipe: {김치: 150, 돼지앞다리: 80, 두부: 60, 대파: 15, 양파: 30, 고춧가루: 5, 쌀: 210, 돼지목살: 60}}
+  - {pos: P-602, name: 제육정식, cat: 점심정식, price: 10000, kitchen: R-SET-JEYUK, station: 구이, lunch_only: true, recipe: {돼지앞다리: 150, 양파: 40, 고추장: 25, 대파: 15, 식용유: 8, 된장: 20, 쌀: 210}}
+  - {pos: P-701, name: 소주, cat: 주류·음료, price: 5000, kitchen: R-DR-SOJU, station: 음료, recipe: {소주: 1}}
+  - {pos: P-702, name: 맥주, cat: 주류·음료, price: 5000, kitchen: R-DR-BEER, station: 음료, recipe: {맥주: 1}}
+  - {pos: P-703, name: 막걸리, cat: 주류·음료, price: 5000, kitchen: R-DR-MAKGEOLLI, station: 음료, recipe: {막걸리: 1}}
+  - {pos: P-704, name: 음료, cat: 주류·음료, price: 2000, kitchen: R-DR-SODA, station: 음료, recipe: {음료: 1}}
+
+# 기본반찬 — 메뉴가 아니라 손님 1명당 나가는 MES 레시피(하루 단위로 소진 기록)
+banchan_per_person: {김치: 50, 콩나물: 40, 감자: 40, 간장: 5, 무: 30}
+
+employees:
+  - {id: E01, name: 박정호, role: 사장, employment: 정규, shift: SH-CLOSE}
+  - {id: E02, name: 이순자, role: 주방장, employment: 정규, shift: SH-OPEN, salary: 4000000, day_off: 화}
+  - {id: E03, name: 김민수, role: 주방보조, employment: 정규, shift: SH-OPEN, salary: 2600000, day_off: 수}
+  - {id: E04, name: 최영희, role: 주방보조, employment: 정규, shift: SH-CLOSE, salary: 2600000, day_off: 목}
+  - {id: E05, name: 정다은, role: 홀매니저, employment: 정규, shift: SH-OPEN, salary: 2500000, day_off: 목}
+  - {id: E06, name: 한지훈, role: 홀매니저, employment: 정규, shift: SH-CLOSE, salary: 2500000, day_off: 화}
+  - {id: E07, name: 윤서연, role: 홀아르바이트, employment: 아르바이트, shift: SH-PEAK, wage: 10320}
+  - {id: E08, name: 강도윤, role: 홀아르바이트, employment: 아르바이트, shift: SH-PEAK, wage: 10320}
+  - {id: E09, name: 조하린, role: 홀아르바이트, employment: 아르바이트, shift: SH-PEAK, wage: 10320}
+  - {id: E10, name: 임태양, role: 홀아르바이트, employment: 아르바이트, shift: SH-PEAK, wage: 10320}
+
+accounts:
+  - {code: "101", name: 현금, type: 자산}
+  - {code: "108", name: 카드미수금, type: 자산}
+  - {code: "146", name: 원재료, type: 자산}
+  - {code: "251", name: 외상매입금, type: 부채}
+  - {code: "262", name: 미지급비용, type: 부채}
+  - {code: "401", name: 매출, type: 수익}
+  - {code: "451", name: 식재료비, type: 비용}
+  - {code: "801", name: 급여, type: 비용}
+  - {code: "805", name: 잡급, type: 비용}
+  - {code: "815", name: 수도광열비, type: 비용}
+  - {code: "819", name: 임차료, type: 비용}
+
+fixed_costs: {rent: 6000000, utilities_base: 2200000}

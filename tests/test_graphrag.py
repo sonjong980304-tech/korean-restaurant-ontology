@@ -41,6 +41,12 @@ def test_온톨로지_설명에_객체_속성값_연결_규칙이_들어간다()
         assert must in text
 
 
+def test_기준정보에_업체별_공급재료와_메뉴id가_들어간다(kdb):
+    text = G.reference_data(kdb)
+    assert "S2 대체정육(육류): PORK(돼지앞다리)" in text
+    assert "M-A 김치찌개 8,000원" in text
+
+
 # ── 읽기 전용 안전장치 ──
 @pytest.mark.parametrize("q, ok", [
     ("MATCH (m:MenuItem) RETURN m.name LIMIT 5", True),

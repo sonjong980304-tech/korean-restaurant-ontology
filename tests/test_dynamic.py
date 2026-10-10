@@ -64,6 +64,10 @@ def test_업체변경_돼지를_S2로(kdb):
     assert result["impact"] == pytest.approx(-200)
 
 
+def test_업체는_이름으로도_지정할_수_있다(kdb):
+    assert SC.supplier_switch(kdb, ["돼지앞다리"], "대체정육", *SEP)["impact"] == pytest.approx(-200)
+
+
 def test_공급하지_않는_재료로_업체변경하면_오류(kdb):
     with pytest.raises(ValueError, match="공급하지 않"):
         SC.supplier_switch(kdb, ["TOFU"], "S2", *SEP)

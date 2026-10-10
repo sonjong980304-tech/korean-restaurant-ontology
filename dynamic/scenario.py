@@ -24,6 +24,14 @@ def _ingredient(driver, key):
     return rows[0]["id"], rows[0]["name"]
 
 
+def _supplier(driver, key):
+    rows = driver.execute_query(
+        "MATCH (s:Supplier) WHERE s.supplier_id = $k OR s.name = $k RETURN s.supplier_id AS id", k=key).records
+    if not rows:
+        raise ValueError(f"없는 공급업체: {key}")
+    return rows[0]["id"]
+
+
 def price_shock(driver, ingredient, pct: float, start: date, end: date):
     """재료 단가가 pct만큼 오르면(음수면 내리면) 메뉴별 원가·마진이 어떻게 바뀌고, 기간 판매량 기준 얼마를 더 쓰나."""
     iid, name = _ingredient(driver, ingredient)
@@ -51,7 +59,8 @@ def price_shock(driver, ingredient, pct: float, start: date, end: date):
 
 
 def supplier_switch(driver, ingredients, supplier_id: str, start: date, end: date):
-    """재료들을 supplier_id로 바꿔 샀다면: (새 공급단가 − 현재 매입단가) × 기간 사용량(소진+폐기)."""
+    """재료들을 supplier_id(id 또는 이름)로 바꿔 샀다면: (새 공급단가 − 현재 매입단가) × 기간 사용량(소진+폐기)."""
+    supplier_id = _supplier(driver, supplier_id)
     prices = F.latest_prices(driver, end)
     rows = []
     for key in ingredients:

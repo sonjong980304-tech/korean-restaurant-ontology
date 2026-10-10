@@ -7,9 +7,9 @@
 | 레이어 | 비유 | 폴더 | 상태 |
 |---|---|---|---|
 | **Semantic** (의미) | 가게의 지도 — 무엇이 있고 어떻게 연결되나 | `semantic/` | ✅ 2·3단계 완료 |
-| **Kinetic** (운동) | 가게의 손발 — 지표 계산(Function)과 행동(Action) | `kinetic/` | ✅ 4단계 Function / 5단계 Action 예정 |
-| **Dynamic** (동적) | 가게의 두뇌 — 예측·시뮬레이션·AI 매니저(GraphRAG) | `dynamic/` | 6·7단계 예정 |
-| 앱 | 사장님 대시보드(Streamlit) | `app/` | 8단계 예정 |
+| **Kinetic** (운동) | 가게의 손발 — 지표 계산(Function)과 행동(Action) | `kinetic/` | ✅ 4단계 Function · 5단계 Action |
+| **Dynamic** (동적) | 가게의 두뇌 — 예측·시뮬레이션·AI 매니저(GraphRAG) | `dynamic/` | ✅ 6단계 예측·시나리오·결정 · 7단계 GraphRAG |
+| 앱 | 사장님 대시보드(Streamlit) | `app/` | ✅ 8단계 |
 
 ## 원천 시스템 4개 → 온톨로지 하나
 
@@ -95,6 +95,9 @@ Neo4j 화면에서 `queries.cypher`의 예시 질문 4개를 붙여 넣어 실�
 | `test_schema.py`, `test_pipeline.py` | 본 Neo4j(7688) | 설계도·파이프라인·계보·적재 |
 | `test_functions.py` + `conftest.py` | **테스트 전용 Neo4j(7689)** | 손으로 정답을 계산한 작은 가게로 각 함수의 정답 검증(TDD) |
 | `test_kinetic_acceptance.py` | 본 Neo4j(7688) | 실데이터에서 '심어 둔 패턴'이 잡히는지 |
+| `test_actions.py`, `test_dynamic.py` | 테스트 전용 Neo4j(7689) | 액션 검증·기록·write-back 재생, 예측·시나리오·결정 |
+| `test_graphrag.py` | 테스트 전용 Neo4j(7689) | 가짜 LLM으로 에이전트 루프·제안·오류, 읽기 전용 안전장치(실호출 1개는 `RUN_LIVE_LLM=1` + 본 DB) |
+| `test_app.py` | 본 Neo4j(7688) | Streamlit AppTest로 6개 화면 렌더
 
 Docker 메모리가 2GB 이하면 두 Neo4j를 동시에 띄울 수 없습니다(메모리 부족으로 종료됨). 번갈아 실행하세요.
 
@@ -104,10 +107,51 @@ docker run -d --name restaurant-neo4j-test -p 127.0.0.1:7689:7687 -e NEO4J_AUTH=
   -e NEO4J_server_memory_heap_max__size=384M -e NEO4J_server_memory_pagecache_size=64M neo4j:5-community
 
 docker stop restaurant-neo4j && docker start restaurant-neo4j-test
-.venv/bin/python -m pytest -q tests/test_functions.py      # 함수 정답(10개)
+.venv/bin/python -m pytest -q tests/test_functions.py tests/test_actions.py tests/test_dynamic.py tests/test_graphrag.py
 docker stop restaurant-neo4j-test && docker start restaurant-neo4j
-.venv/bin/python -m pytest -q tests                        # 나머지(35개, 함수 테스트는 건너뜀)
+RUN_LIVE_LLM=1 .venv/bin/python -m pytest -q tests        # 나머지(테스트 DB용은 자동으로 건너뜀)
 ```
+
+## Kinetic Action — 데이터를 바꾸는 행동 (`kinetic/actions.py`)
+
+| 액션 | 거부 규칙 | 실행하면 |
+|---|---|---|
+| `change_price` 가격 변경 | 새 가격 ≤ 원가, 한 번에 ±30% 초과 | MenuItem.price 변경 |
+| `set_availability` 품절·판매 재개 | 이미 그 상태 | MenuItem.is_available 변경 |
+| `create_purchase_order` 발주 | 그 업체가 안 파는 재료, 수량 ≤ 0, 합계 300만 원 초과 | PurchaseOrder(요청) + 품목 + 업체 연결 |
+
+- 실행·거부 모두 `ActionLog` 노드로 남고 대상과 연결됩니다(감사 추적).
+- **write-back**: 액션·시나리오·결정은 `data/writeback/events.jsonl`에도 한 줄씩 쌓입니다. `semantic/pipeline.py`로 원천에서
+  다시 적재하면 마지막에 이 기록을 같은 id·시각으로 재생해 그대로 복원합니다(팔란티어의 write-back 데이터셋 개념).
+
+## Dynamic — 예측·시나리오·의사결정·AI (`dynamic/`)
+
+| 파일 | 내용 |
+|---|---|
+| `forecast.py` | 같은 요일 최근 N주 평균으로 메뉴 수요 예측 → 레시피로 재료 필요량 → 재고 대비 추천 발주량(필요 + 안전재고 − 재고)과 최저가 업체 |
+| `scenario.py` | What-if: 원가 충격(재료 단가 ±%) → 메뉴별 원가·마진·기간 원가 증가액 / 업체 변경 → 기간 절감액. `save_scenario`로 Scenario 노드 저장 |
+| `decision.py` | 결정 기록: Decision —근거→ Scenario, —실행→ ActionLog. 결정 추적, 기준일 전후 판매 비교 |
+| `graphrag.py` | AI 매니저: OpenAI 함수호출(기본 `gpt-4.1-mini`, `OPENAI_MODEL`로 변경). 도구 = 위 함수들 + 읽기 전용 Cypher + 액션 제안 |
+
+AI 매니저의 원칙: 숫자는 도구 결과에서만, 근거(호출 도구·인자·결과)를 함께 보여 줌, Cypher는 **쓰기 키워드 차단 + 읽기 전용
+트랜잭션** 2중 안전장치, 액션은 **제안만**(실행은 화면의 승인 버튼). 시스템 프롬프트는 `schema.yaml`과 DB의 기준정보(업체·재료·메뉴)로 자동 생성.
+
+## 앱 (Streamlit)
+
+```bash
+.venv/bin/streamlit run app/main.py --server.port 8766    # http://localhost:8766
+```
+
+| 메뉴 | 레이어 | 내용 |
+|---|---|---|
+| 개요 | - | 월 매출·원가율·회전율·놓친 팀·이탈위험, 재고 경보, 지금 볼 것 |
+| 온톨로지 탐색 | Semantic | 설계도 그래프(색 = 원천 시스템), 객체 한 건의 주변 그래프(선에 마우스 → 계보), 시스템별 데이터 양 |
+| 운영 현황 | Kinetic Function | 메뉴 엔지니어링 4분면, 회전율 히트맵, 이탈률, 원가율, 로스·재고, 고객 세그먼트 |
+| 액션 | Kinetic Action | 가격·품절·발주 실행(검증 메시지), 실행 기록 |
+| 예측·시뮬레이션 | Dynamic | 수요 예측과 추천 발주 실행, 원가 충격, 업체 변경, 의사결정 기록, 전후 비교 |
+| AI 매니저 | Dynamic | 채팅 + 근거 펼쳐 보기 + 제안 승인 실행 |
+
+색은 dataviz 검증 팔레트(다크 표면에서 색각 이상·대비 검사 통과)를 원천 시스템별로 고정해 씁니다.
 
 ## 고객은 3개 축으로 나눈다
 

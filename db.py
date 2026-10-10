@@ -11,6 +11,7 @@ def get_driver():
     return GraphDatabase.driver(
         os.environ["NEO4J_URI"],
         auth=(os.environ["NEO4J_USER"], os.environ["NEO4J_PASSWORD"]),
+        notifications_min_severity="OFF",   # '아직 없는 속성' 같은 안내 경고로 로그가 넘치지 않게
     )
 
 

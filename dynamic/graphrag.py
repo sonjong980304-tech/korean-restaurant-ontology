@@ -67,6 +67,21 @@ def describe_ontology(schema):
     return "\n".join(lines) + "\n" + RULES
 
 
+def reference_data(driver):
+    """질문마다 함께 주는 작은 기준정보: 공급업체와 그 업체가 파는 재료, 메뉴 목록(id·이름·가격)."""
+    lines = ["## 기준정보(현재 데이터 — 도구 인자에는 id를 쓴다)", "공급업체 id 이름(분류): 공급 재료 id(이름)"]
+    for r in driver.execute_query(
+            """MATCH (s:Supplier) OPTIONAL MATCH (s)-[:SUPPLIES]->(i:Ingredient)
+               WITH s, i ORDER BY i.name
+               RETURN s.supplier_id AS id, s.name AS name, s.category AS cat,
+                      collect(i.ingredient_id + '(' + i.name + ')') AS items ORDER BY id""").records:
+        lines.append(f"- {r['id']} {r['name']}({r['cat']}): {', '.join(r['items'])}")
+    menus = driver.execute_query(
+        "MATCH (m:MenuItem) RETURN m.menu_id AS id, m.name AS name, m.price AS price ORDER BY id").records
+    lines.append("메뉴 id 이름 가격: " + ", ".join(f"{m['id']} {m['name']} {m['price']:,}원" for m in menus))
+    return "\n".join(lines) + "\n"
+
+
 # ── 읽기 전용 Cypher ──
 WRITE = re.compile(
     r"\b(CREATE|MERGE|DELETE|DETACH|SET|REMOVE|DROP|FOREACH|GRANT|DENY|REVOKE|ALTER|RENAME|LOAD\s+CSV|"
@@ -207,7 +222,7 @@ class OpenAIChat:
 def ask(driver, question, llm=None, history=()):
     """질문 하나에 답한다. 반환: {answer, evidence:[{tool, args, result}], proposals:[...]}"""
     llm = llm or OpenAIChat()
-    system = INSTRUCTIONS + "\n" + describe_ontology(S.load())
+    system = INSTRUCTIONS + "\n" + describe_ontology(S.load()) + reference_data(driver)
     messages = [{"role": "system", "content": system}, *history, {"role": "user", "content": question}]
     evidence, proposals = [], []
     for _ in range(MAX_STEPS):

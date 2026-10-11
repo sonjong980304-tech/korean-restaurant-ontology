@@ -40,6 +40,16 @@ Neo4j 그래프로 시각화한 뒤, 사장님이 의사결정에 쓰는 **Strea
 
 **실데이터 예시**: 9월 육류를 대체 업체(대성미트)로 바꿨다면 약 **151만 원 절감**. AI 매니저 답과 손 계산이 일치합니다.
 
+### 화면 미리보기
+
+| 개요 — 월 핵심 지표와 지금 볼 것 | 온톨로지 탐색 — 설계도 (색 = 원천 시스템) |
+|---|---|
+| ![개요](docs/screenshots/overview.png) | ![온톨로지 탐색](docs/screenshots/ontology.png) |
+| **운영 현황 — 메뉴 엔지니어링 4분면** | **예측·시뮬레이션 — 수요 예측과 추천 발주** |
+| ![운영 현황](docs/screenshots/operations.png) | ![예측·시뮬레이션](docs/screenshots/simulation.png) |
+| **액션 — 규칙 검증 후 가격 변경** | **AI 매니저 — 근거와 함께 답변** |
+| ![액션](docs/screenshots/actions.png) | ![AI 매니저](docs/screenshots/assistant.png) |
+
 ---
 
 ## 핵심 아이디어: 시스템 4개를 하나의 온톨로지로
@@ -339,6 +349,8 @@ ORDER BY 시각
 | 9월 판매 | 736그릇 (26영업일) | POS 주문 (`CONTAINS.qty`) |
 | 영향액 | 50.4 × 736 = **37,094원** | 앱 화면 값과 일치 |
 
+![원가 충격 — 양파 +40%, 9월](docs/screenshots/price_shock.png)
+
 계산 코드는 별도 파일을 읽지 않고 그래프의 연결선만 따라갑니다. 연결이 끊긴 메뉴·재료는 계산에 잡히지 않습니다.
 
 **AI 매니저 원칙**
@@ -468,6 +480,7 @@ RUN_LIVE_LLM=1 .venv/bin/python -m pytest -q tests        # 나머지 (테스트
 ├── app/                 # Streamlit 앱 (main.py, common.py, views/)
 ├── sources/             # 가상 원천 데이터 생성기 (master.yaml, generate.py)
 ├── tests/               # pytest (작은 가게 픽스처 + 실데이터 수용 테스트 + AppTest)
+├── docs/screenshots/    # README용 앱 화면
 ├── data/                # (git 제외) raw CSV, writeback/events.jsonl
 ├── queries.cypher       # Neo4j 브라우저용 예시 질문
 ├── db.py                # Neo4j 접속 (.env)
